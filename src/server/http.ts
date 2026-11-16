@@ -171,7 +171,20 @@ export async function startServer(deps: ServerDeps): Promise<RunningServer> {
     });
   }
 
-  await new Promise<void>((r) => server.listen(deps.port ?? 0, "127.0.0.1", r));
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(deps.port ?? 0, "127.0.0.1", () => {
+        server.off("error", reject);
+        resolve();
+      });
+    });
+  } catch (e) {
+    clearInterval(scanTimer);
+    store.stopWatching();
+    off();
+    throw e;
+  }
   port = (server.address() as { port: number }).port;
   return {
     url: `http://127.0.0.1:${port}`,

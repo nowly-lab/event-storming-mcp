@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import type { Command } from "./cli.ts";
 import { startServer } from "./server/http.ts";
-import { acquireServerLock, clearServerInfo, ensureServer, holdsServerLock, liveServer, releaseServerLock, stopServer, writeServerInfo } from "./server/daemon.ts";
+import { clearServerInfo, ensureServer, liveServer, lockPort, stopServer, writeServerInfo } from "./server/daemon.ts";
+import { mkdirSync } from "node:fs";
 import { HistoryStore } from "./store/history.ts";
 import { ModelStore } from "./store/model-store.ts";
 import { dataDir } from "./store/paths.ts";
@@ -31,31 +32,36 @@ const serve: Command = async (args, io) => {
     if (!values["no-open"]) openBrowser(info.url);
     return 0;
   }
-  if (!acquireServerLock(dir) || (await liveServer(dir))) {
-    io.err("event-storming-mcp: サーバーはもう動いています（status で確かめられます）。\n");
-    return 1;
-  }
+  mkdirSync(dir, { recursive: true });
+  const port = values.port ? Number(values.port) : lockPort(dir);
   const registry = new ProjectRegistry(dir);
   const history = new HistoryStore(dir);
   const store = new ModelStore({ registry, history });
   const { attachMcp } = await import("./mcp/http.ts");
-  const deps = { store, registry, history, webRoot: WEB, port: values.port ? Number(values.port) : 0 };
-  const server: { url: string } & Awaited<ReturnType<typeof startServer>> = await startServer({ ...deps, mcp: attachMcp(deps, () => server.url, openBrowser) });
+  const deps = { store, registry, history, webRoot: WEB, port };
+  let server: Awaited<ReturnType<typeof startServer>>;
+  try {
+    // Listening on the folder's port is the lock: a second server cannot get it.
+    server = await startServer({ ...deps, mcp: attachMcp(deps, () => server.url, openBrowser) });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "EADDRINUSE") throw e;
+    // The winner of a simultaneous start may not have published server.json yet: give it a moment.
+    let live = await liveServer(dir);
+    for (let i = 0; !live && i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      live = await liveServer(dir);
+    }
+    if (live) io.err("event-storming-mcp: サーバーはもう動いています（status で確かめられます）。\n");
+    else io.err(`event-storming-mcp: ポート ${port} を別のプログラムが使っています。EVENT_STORMING_MCP_PORT で別のポートを指定してください。\n`);
+    return 1;
+  }
   await writeServerInfo(dir, { port: server.port, pid: process.pid, version: VERSION, url: server.url });
   io.out(`${server.url}\n`);
   const shutdown = async () => {
     await clearServerInfo(dir, process.pid);
-    releaseServerLock(dir);
     await server.close();
     process.exit(0);
   };
-  // Fail safe: a server that no longer holds the lock stops, so two writers never run for long.
-  setInterval(() => {
-    if (!holdsServerLock(dir)) {
-      io.err("event-storming-mcp: server.lock を別のサーバーが持っているので止まります。\n");
-      void server.close().then(() => process.exit(1));
-    }
-  }, 2000).unref();
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
   return new Promise<number>(() => {});
