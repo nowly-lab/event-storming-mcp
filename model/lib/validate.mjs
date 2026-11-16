@@ -1,6 +1,6 @@
 // Validates the domain model data. Every problem becomes one line:
 //   data/<file>.json: <json path>: <what is wrong and how to fix it>
-// The format is documented in ../../references/data-format.md.
+// The format is documented in ../../docs/data-format.md.
 
 export const DATA_FILES = ['big-picture', 'domain-glossary', 'workflow-models', 'context-map'];
 export const NODE_TYPES = ['actor', 'command', 'event', 'policy', 'readModel', 'aggregate', 'external', 'hotspot'];
@@ -140,19 +140,23 @@ function hint(v, candidates) {
 }
 
 // ---- references and rules --------------------------------------------------
+// Structural problems (broken shape, duplicate or unknown ids, self or nested attachments, repeated or
+// self arrows) make the data unusable; the rest are modeling rules a half-finished board may break for
+// a while. validateModel reports both, unchanged; validateStructure reports only the structural ones.
+const structural = (err) => err.structural || err;
 function uniqueIds(list, key, path, label, err) {
   const seen = new Map();
   (list || []).forEach((item, i) => {
     const v = item?.[key];
     if (typeof v !== 'string') return;
-    if (seen.has(v)) err(`${path}[${i}].${key}`, `${label} ${JSON.stringify(v)} が ${path}[${seen.get(v)}] と重複しています。別の名前にしてください。`);
+    if (seen.has(v)) structural(err)(`${path}[${i}].${key}`, `${label} ${JSON.stringify(v)} が ${path}[${seen.get(v)}] と重複しています。別の名前にしてください。`);
     else seen.set(v, i);
   });
   return new Set(seen.keys());
 }
 function ref(v, set, path, label, err) {
   if (typeof v !== 'string' || set.has(v)) return;
-  err(path, `${JSON.stringify(v)} という${label}はありません。定義済みの id を指定してください${hint(v, [...set])}。`);
+  structural(err)(path, `${JSON.stringify(v)} という${label}はありません。定義済みの id を指定してください${hint(v, [...set])}。`);
 }
 
 function checkBigPicture(bp, err) {
@@ -169,8 +173,8 @@ function checkBigPicture(bp, err) {
     if (n.attach) {
       ref(n.attach.to, nodeIds, `${p}.attach.to`, '付箋', err);
       const host = byId.get(n.attach.to);
-      if (n.attach.to === n.id) err(`${p}.attach.to`, `付箋を自分自身には貼れません。別の付箋の id を指定してください。`);
-      else if (host?.attach) err(`${p}.attach.to`, `${JSON.stringify(n.attach.to)} は別の付箋に貼られた付箋なので、その上には貼れません。流れの中の付箋を指定してください。`);
+      if (n.attach.to === n.id) structural(err)(`${p}.attach.to`, `付箋を自分自身には貼れません。別の付箋の id を指定してください。`);
+      else if (host?.attach) structural(err)(`${p}.attach.to`, `${JSON.stringify(n.attach.to)} は別の付箋に貼られた付箋なので、その上には貼れません。流れの中の付箋を指定してください。`);
     }
   });
   const seenEdge = new Set();
@@ -182,9 +186,9 @@ function checkBigPicture(bp, err) {
     const a = byId.get(e.from), b = byId.get(e.to);
     if (!a || !b) return;
     const key = `${e.from}>${e.to}>${e.kind}`;
-    if (seenEdge.has(key)) err(p, `同じ矢印（${e.from} → ${e.to}）が二度書かれています。片方を消してください。`);
+    if (seenEdge.has(key)) structural(err)(p, `同じ矢印（${e.from} → ${e.to}）が二度書かれています。片方を消してください。`);
     seenEdge.add(key);
-    if (e.from === e.to) err(p, `付箋から自分自身への矢印は書けません。`);
+    if (e.from === e.to) structural(err)(p, `付箋から自分自身への矢印は書けません。`);
     if (e.kind === 'result') {
       if (a.type !== 'event') err(`${p}.from`, `点線（result）の矢印はイベントから始めてください（今は ${a.type}）。`);
       if (b.type !== 'readModel') err(`${p}.to`, `点線（result）の矢印はリードモデルに向けてください（今は ${b.type}）。`);
@@ -300,16 +304,35 @@ function checkContexts(c, bp, err) {
  * @returns {string[]} error lines; empty when valid
  */
 export function validateModel(data) {
+  return collect(data).map((e) => e.line);
+}
+
+/**
+ * Only the problems that make the data unusable: shape, schema, duplicate and unknown ids, self or
+ * nested attachments, repeated or self arrows. A board that breaks modeling rules but passes this can
+ * still be saved and drawn.
+ * @returns {string[]} error lines in the same format as validateModel
+ */
+export function validateStructure(data) {
+  return collect(data).filter((e) => e.structural).map((e) => e.line);
+}
+
+function collect(data) {
   const errors = [];
-  const errFor = (file) => (path, msg) => errors.push(`data/${file}.json: ${path ? `${path}: ` : ''}${msg}`);
+  const errFor = (file) => {
+    const push = (isStructural) => (path, msg) => errors.push({ line: `data/${file}.json: ${path ? `${path}: ` : ''}${msg}`, structural: isStructural });
+    const err = push(false);
+    err.structural = push(true);
+    return err;
+  };
   const shapeOk = {};
   for (const file of DATA_FILES) {
     const err = errFor(file);
-    if (!(file in data)) { err('', `ファイルがありません。\`domain-model.mjs init\` で雛形を作れます。`); continue; }
+    if (!(file in data)) { err.structural('', `ファイルがありません。\`domain-model.mjs init\` で雛形を作れます。`); continue; }
     const before = errors.length;
     const v = data[file];
-    checkShape(v, SPECS[file], '', err);
-    if (v && typeof v === 'object' && v.schema !== undefined && v.schema !== `${file}/v1`) err('schema', `${JSON.stringify(v.schema)} ではなく "${file}/v1" と書いてください。`);
+    checkShape(v, SPECS[file], '', err.structural);
+    if (v && typeof v === 'object' && v.schema !== undefined && v.schema !== `${file}/v1`) err.structural('schema', `${JSON.stringify(v.schema)} ではなく "${file}/v1" と書いてください。`);
     shapeOk[file] = errors.length === before;
   }
   // Cross-file checks need big-picture's ids; skip them when its shape is broken.
