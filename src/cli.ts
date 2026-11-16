@@ -24,11 +24,6 @@ export type IO = { out: (s: string) => void; err: (s: string) => void };
 export type Command = (args: string[], io: IO) => Promise<number>;
 
 const MODEL_COMMANDS = new Set(["init", "validate", "render", "check"]);
-/** Server-side commands are added by later modules; see registerCommand. */
-const commands = new Map<string, Command>();
-export function registerCommand(name: string, fn: Command): void {
-  commands.set(name, fn);
-}
 
 export async function main(argv: string[], io: IO): Promise<number> {
   const [cmd = "serve", ...rest] = argv;
@@ -44,7 +39,8 @@ export async function main(argv: string[], io: IO): Promise<number> {
     const { run } = await engine();
     return run([cmd, ...rest], { log: (s: string) => io.out(`${s}\n`), error: (s: string) => io.err(`${s}\n`) });
   }
-  const fn = commands.get(cmd);
+  const { commands } = await import("./commands.ts");
+  const fn = Object.hasOwn(commands, cmd) ? commands[cmd] : undefined;
   if (!fn) {
     io.err(`event-storming-mcp: 知らないコマンドです: ${cmd}\n\n${USAGE}`);
     return 2;
