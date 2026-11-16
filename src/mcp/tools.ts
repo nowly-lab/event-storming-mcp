@@ -41,7 +41,11 @@ export function registerTools(server: McpServer, deps: ToolDeps, author: () => A
   server.registerTool("register_project", {
     description: "Register a scrum-domain-modeling model folder (the folder that holds data/big-picture.json). Several checkouts of one repository become one project; the latest registered checkout receives writes.",
     inputSchema: { model_dir: z.string().describe("Absolute path of the model folder") },
-  }, guard(async ({ model_dir }) => ok(await registry.register(model_dir))));
+  }, guard(async ({ model_dir }) => {
+    const p = await registry.register(model_dir);
+    await store.read(p.slug); // records the checkout's files and starts watching them
+    return ok(p);
+  }));
 
   server.registerTool("get_model", {
     description: "Read a project's model data and its version. Pass that version as base_version to apply_changes. Optionally one file only.",
@@ -95,11 +99,12 @@ export function registerTools(server: McpServer, deps: ToolDeps, author: () => A
   }));
 
   server.registerTool("restore_version", {
-    description: "Restore a past version. The restore is recorded as a new version.",
-    inputSchema: { project, version: z.number().int().positive() },
-  }, guard(async ({ project: p, version }) => {
-    const r = await store.restore(await slugOf(p), version, author());
-    return r.ok ? ok(r) : fail(r.reason === "invalid" ? `invalid: ${r.errors.join("\n")}` : "conflict");
+    description: "Restore a past version, based on the latest version you read (base_version). The restore is recorded as a new version; a stale base_version returns conflict.",
+    inputSchema: { project, version: z.number().int().positive(), base_version: z.number().int() },
+  }, guard(async ({ project: p, version, base_version }) => {
+    const r = await store.restore(await slugOf(p), version, author(), base_version);
+    if (!r.ok && r.reason === "conflict") return fail(`conflict: 版 ${base_version} は最新ではありません（最新は版 ${r.current.version}）。list_history で確かめてから、もう一度戻してください。`);
+    return r.ok ? ok(r) : fail(`invalid: ${r.errors.join("\n")}`);
   }));
 
   server.registerTool("open_page", {

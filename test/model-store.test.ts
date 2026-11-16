@@ -103,7 +103,7 @@ test("restore creates a new version equal to the old files", async () => {
     const v1 = readFileSync(join(s.modelDir, "data", "big-picture.json"), "utf8");
     const r = await s.store.read(s.slug);
     await s.store.apply(s.slug, { baseVersion: 1, ops: [{ op: "updateNode", id: r.data["big-picture"].nodes[0].id, patch: { text: "変" } }], author: person });
-    const res = await s.store.restore(s.slug, 1, person);
+    const res = await s.store.restore(s.slug, 1, person, 2);
     assert.ok(res.ok && res.version === 3);
     assert.equal(readFileSync(join(s.modelDir, "data", "big-picture.json"), "utf8"), v1);
     assert.match((await s.history.latest(s.slug))!.summary, /版 1 に戻した/);
@@ -136,6 +136,54 @@ test("events are emitted for each new version", async () => {
     off();
     assert.deepEqual(seen, [2]);
     assert.equal(existsSync(join(s.modelDir, "data", "big-picture.json")), true);
+  } finally {
+    s.t.done();
+  }
+});
+
+test("external edit right before apply (no watcher) yields conflict and is kept in history", async () => {
+  const s = await setup();
+  try {
+    const r = await s.store.read(s.slug);
+    const p = join(s.modelDir, "data", "big-picture.json");
+    const bp = JSON.parse(readFileSync(p, "utf8"));
+    bp.nodes[0].text = "EXTERNAL NOT YET POLLED";
+    writeFileSync(p, JSON.stringify(bp, null, 2) + "\n");
+    const res = await s.store.apply(s.slug, { baseVersion: r.version, ops: [{ op: "updateNode", id: bp.nodes[0].id, patch: { text: "UI overwrites" } }], author: person });
+    assert.ok(!res.ok && res.reason === "conflict");
+    assert.match(readFileSync(p, "utf8"), /EXTERNAL NOT YET POLLED/);
+    const latest = await s.history.latest(s.slug);
+    assert.equal(latest?.author.kind, "file");
+    assert.equal(latest?.version, 2);
+  } finally {
+    s.t.done();
+  }
+});
+
+test("an unreadable or structurally broken file on disk blocks writes", async () => {
+  const s = await setup();
+  try {
+    const r = await s.store.read(s.slug);
+    const p = join(s.modelDir, "data", "big-picture.json");
+    writeFileSync(p, "{ broken");
+    const res = await s.store.apply(s.slug, { baseVersion: r.version, ops: [{ op: "updateNode", id: r.data["big-picture"].nodes[0].id, patch: { text: "x" } }], author: person });
+    assert.ok(!res.ok && res.reason === "invalid" && /JSON として読めません/.test(res.errors.join("")));
+    assert.equal(readFileSync(p, "utf8"), "{ broken");
+    assert.equal((await s.store.read(s.slug)).version, 1, "reads keep the last good version");
+  } finally {
+    s.t.done();
+  }
+});
+
+test("restore with a stale baseVersion is a conflict", async () => {
+  const s = await setup();
+  try {
+    const r = await s.store.read(s.slug);
+    await s.store.apply(s.slug, { baseVersion: 1, ops: [{ op: "updateNode", id: r.data["big-picture"].nodes[0].id, patch: { text: "v2" } }], author: person });
+    const stale = await s.store.restore(s.slug, 1, person, 1);
+    assert.ok(!stale.ok && stale.reason === "conflict");
+    const ok = await s.store.restore(s.slug, 1, person, 2);
+    assert.ok(ok.ok && ok.version === 3);
   } finally {
     s.t.done();
   }

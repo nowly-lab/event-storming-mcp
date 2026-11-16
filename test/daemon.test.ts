@@ -37,3 +37,19 @@ test("second serve reuses the running server", async () => {
     t.done();
   }
 });
+
+test("simultaneous startup leaves one server", async () => {
+  const t = tmp();
+  try {
+    const [a, b] = await Promise.all([ensureServer({ dataDir: t.dir, cli: CLI }), ensureServer({ dataDir: t.dir, cli: CLI })]);
+    assert.equal(a.pid, b.pid);
+    await new Promise((r) => setTimeout(r, 500));
+    const { execFileSync } = await import("node:child_process");
+    const procs = execFileSync("ps", ["-ax", "-o", "pid=,command="], { encoding: "utf8" }).split("\n").filter((l) => l.includes(CLI) && l.includes("--foreground") && !l.includes("ps -ax"));
+    const mine = procs.filter((l) => { const pid = Number(l.trim().split(/\s+/)[0]); try { return execFileSync("ps", ["-p", String(pid), "-E", "-o", "command="], { encoding: "utf8" }).includes(t.dir); } catch { return false; } });
+    assert.equal(mine.length, 1, mine.join("\n"));
+    await stopServer(t.dir);
+  } finally {
+    t.done();
+  }
+});

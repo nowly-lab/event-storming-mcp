@@ -69,3 +69,34 @@ test("repo without origin falls back to real path", async () => {
     t.done();
   }
 });
+
+import { ModelStore } from "../src/store/model-store.ts";
+import { HistoryStore } from "../src/store/history.ts";
+import { readFileSync, writeFileSync } from "node:fs";
+
+test("switching to a checkout with different files records them before any edit", async () => {
+  const t = tmp();
+  try {
+    const { repo, modelDir } = sampleRepo(t.dir);
+    const wt = join(t.dir, "wt");
+    git(repo, "worktree", "add", "-q", wt, "-b", "feature");
+    const bModel = join(wt, "docs", "model");
+    const bp = JSON.parse(readFileSync(join(bModel, "data", "big-picture.json"), "utf8"));
+    bp.nodes[1].text = "SECOND CHECKOUT UNIQUE";
+    writeFileSync(join(bModel, "data", "big-picture.json"), JSON.stringify(bp, null, 2) + "\n");
+    const reg = new ProjectRegistry(join(t.dir, "data"));
+    const history = new HistoryStore(join(t.dir, "data"));
+    const store = new ModelStore({ registry: reg, history });
+    const p = await reg.register(modelDir);
+    const r = await store.read(p.slug);
+    await reg.register(bModel);
+    const res = await store.apply(p.slug, { baseVersion: r.version, ops: [{ op: "updateNode", id: bp.nodes[0].id, patch: { text: "edit" } }], author: { kind: "person" } });
+    assert.ok(!res.ok && res.reason === "conflict", "the edit was based on the other checkout");
+    assert.match(readFileSync(join(bModel, "data", "big-picture.json"), "utf8"), /SECOND CHECKOUT UNIQUE/);
+    const again = await store.read(p.slug);
+    assert.equal(again.data["big-picture"].nodes[1].text, "SECOND CHECKOUT UNIQUE");
+    assert.match((await history.latest(p.slug))!.summary, /書き込み先/);
+  } finally {
+    t.done();
+  }
+});

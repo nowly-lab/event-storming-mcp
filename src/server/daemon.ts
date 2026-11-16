@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { writeAtomic } from "../store/fsutil.ts";
@@ -38,6 +38,47 @@ export async function liveServer(dataDir: string): Promise<ServerInfo | null> {
   }
 }
 
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/**
+ * Takes the one-server-per-data-folder lock (server.lock, created exclusively). A lock whose process is
+ * gone is removed and taken again. Returns false when another live server holds it.
+ */
+export function acquireServerLock(dataDir: string): boolean {
+  mkdirSync(dataDir, { recursive: true });
+  const f = join(dataDir, "server.lock");
+  for (let i = 0; i < 2; i++) {
+    try {
+      const fd = openSync(f, "wx");
+      writeSync(fd, String(process.pid));
+      closeSync(fd);
+      return true;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+      const holder = Number(readFileSync(f, "utf8").trim());
+      if (holder && holder !== process.pid && alive(holder)) return false;
+      rmSync(f, { force: true });
+    }
+  }
+  return false;
+}
+
+export function releaseServerLock(dataDir: string): void {
+  const f = join(dataDir, "server.lock");
+  try {
+    if (Number(readFileSync(f, "utf8").trim()) === process.pid) rmSync(f, { force: true });
+  } catch {
+    // Already gone.
+  }
+}
+
 /** Returns the running server, starting a detached one when none answers (a stale server.json is replaced). */
 export async function ensureServer(opts: { dataDir: string; cli: string; timeoutMs?: number }): Promise<ServerInfo> {
   const live = await liveServer(opts.dataDir);
@@ -51,8 +92,9 @@ export async function ensureServer(opts: { dataDir: string; cli: string; timeout
   const end = Date.now() + (opts.timeoutMs ?? 15_000);
   while (Date.now() < end) {
     await new Promise((r) => setTimeout(r, 100));
+    // Another caller may have started the server first; its server is as good as ours.
     const info = await liveServer(opts.dataDir);
-    if (info && info.pid === child.pid) return info;
+    if (info) return info;
   }
   throw new Error("サーバーを起動できませんでした。`event-storming-mcp serve --foreground` を実行して、表示される誤りを確かめてください。");
 }

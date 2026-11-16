@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import type { Command } from "./cli.ts";
 import { startServer } from "./server/http.ts";
-import { clearServerInfo, ensureServer, liveServer, stopServer, writeServerInfo } from "./server/daemon.ts";
+import { acquireServerLock, clearServerInfo, ensureServer, liveServer, releaseServerLock, stopServer, writeServerInfo } from "./server/daemon.ts";
 import { HistoryStore } from "./store/history.ts";
 import { ModelStore } from "./store/model-store.ts";
 import { dataDir } from "./store/paths.ts";
@@ -31,7 +31,7 @@ const serve: Command = async (args, io) => {
     if (!values["no-open"]) openBrowser(info.url);
     return 0;
   }
-  if (await liveServer(dir)) {
+  if (!acquireServerLock(dir) || (await liveServer(dir))) {
     io.err("event-storming-mcp: サーバーはもう動いています（status で確かめられます）。\n");
     return 1;
   }
@@ -45,6 +45,7 @@ const serve: Command = async (args, io) => {
   io.out(`${server.url}\n`);
   const shutdown = async () => {
     await clearServerInfo(dir, process.pid);
+    releaseServerLock(dir);
     await server.close();
     process.exit(0);
   };

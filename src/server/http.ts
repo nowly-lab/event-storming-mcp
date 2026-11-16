@@ -9,7 +9,6 @@ import { OpSchema, previewRemoveNode } from "../model/ops.ts";
 import type { HistoryStore } from "../store/history.ts";
 import type { ModelStore, StoreEvent } from "../store/model-store.ts";
 import type { ProjectRegistry } from "../store/registry.ts";
-import { watchProject } from "../store/watch.ts";
 import { VERSION } from "../version.ts";
 
 export type ServerDeps = {
@@ -19,6 +18,8 @@ export type ServerDeps = {
   webRoot: string;
   port?: number;
   watchIntervalMs?: number;
+  /** How often to look for projects registered outside the server (the CLI's add). */
+  registryScanMs?: number;
   /** Handles /mcp (Streamable HTTP); attached by the MCP module. */
   mcp?: (req: IncomingMessage, res: ServerResponse, body: unknown) => Promise<void>;
 };
@@ -31,7 +32,7 @@ const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".j
 const ChangesBody = z.object({ nonce: z.string(), baseVersion: z.number().int(), ops: z.array(OpSchema) });
 const NonceBody = z.object({ nonce: z.string() });
 const RemoveBody = NonceBody.extend({ id: z.string() });
-const RestoreBody = NonceBody.extend({ version: z.number().int().positive() });
+const RestoreBody = NonceBody.extend({ version: z.number().int().positive(), baseVersion: z.number().int() });
 const TargetBody = NonceBody.extend({ checkoutRoot: z.string() });
 const RegisterBody = NonceBody.extend({ modelDir: z.string() });
 
@@ -49,11 +50,13 @@ export async function startServer(deps: ServerDeps): Promise<RunningServer> {
   const webRoot = resolve(deps.webRoot);
   const nonce = randomBytes(24).toString("hex");
   const streams = new Map<string, Set<ServerResponse>>();
-  const watchers = new Map<string, { close(): void }>();
-  const watch = (slug: string) => {
-    if (!watchers.has(slug)) watchers.set(slug, watchProject(store, registry, slug, { intervalMs: deps.watchIntervalMs }));
+  store.startWatching(deps.watchIntervalMs ?? 300);
+  const scan = async () => {
+    for (const p of await registry.list().catch(() => [])) if (!store.watching(p.slug)) await store.read(p.slug).catch(() => undefined);
   };
-  for (const p of await registry.list()) watch(p.slug);
+  await scan();
+  const scanTimer = setInterval(scan, deps.registryScanMs ?? 2000);
+  scanTimer.unref();
 
   const off = store.on((e: StoreEvent) => {
     const name = e.type;
@@ -93,7 +96,6 @@ export async function startServer(deps: ServerDeps): Promise<RunningServer> {
       if (parts[1] === "projects" && parts.length === 2) return json(res, 200, await listProjects());
       if (parts[1] === "projects" && parts.length >= 4) {
         const slug = (await registry.get(parts[2])).slug;
-        watch(slug);
         switch (parts[3]) {
           case "model":
             return json(res, 200, await store.read(slug));
@@ -121,7 +123,7 @@ export async function startServer(deps: ServerDeps): Promise<RunningServer> {
   async function post(parts: string[], body: unknown): Promise<unknown> {
     if (parts[1] === "projects" && parts.length === 2) {
       const p = await registry.register(RegisterBody.parse(body).modelDir);
-      watch(p.slug);
+      await store.read(p.slug);
       return p;
     }
     const slug = (await registry.get(parts[2] ?? "")).slug;
@@ -133,7 +135,10 @@ export async function startServer(deps: ServerDeps): Promise<RunningServer> {
       case "preview-remove":
         return previewRemoveNode((await store.read(slug)).data, RemoveBody.parse(body).id);
       case "restore":
-        return store.restore(slug, RestoreBody.parse(body).version, { kind: "person" });
+      {
+        const b = RestoreBody.parse(body);
+        return store.restore(slug, b.version, { kind: "person" }, b.baseVersion);
+      }
       case "write-target": {
         const p = await registry.setWriteTarget(slug, TargetBody.parse(body).checkoutRoot);
         await store.ingest(slug);
@@ -171,7 +176,8 @@ export async function startServer(deps: ServerDeps): Promise<RunningServer> {
     port,
     close: async () => {
       off();
-      for (const w of watchers.values()) w.close();
+      clearInterval(scanTimer);
+      store.stopWatching();
       for (const set of streams.values()) for (const r of set) r.end();
       server.closeAllConnections();
       await new Promise<void>((r) => server.close(() => r()));

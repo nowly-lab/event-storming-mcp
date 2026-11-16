@@ -24,11 +24,11 @@ async function setup(name = "claude-code") {
   const store = new ModelStore({ registry, history });
   const deps = { store, registry, history, webRoot: t.dir };
   let url = "";
-  const server = await startServer({ ...deps, port: 0, mcp: attachMcp(deps, () => url) });
+  const server = await startServer({ ...deps, port: 0, watchIntervalMs: 50, registryScanMs: 100, mcp: attachMcp(deps, () => url) });
   url = server.url;
   const client = new Client({ name, version: "1.0.0" });
   await client.connect(new StreamableHTTPClientTransport(new URL(`${server.url}/mcp`)));
-  return { t, modelDir, server, client, store, history, done: async () => { await client.close(); await server.close(); t.done(); } };
+  return { t, modelDir, server, client, store, history, registry, done: async () => { await client.close(); await server.close(); t.done(); } };
 }
 
 test("tools/list returns the 10 tools", async () => {
@@ -109,5 +109,45 @@ test("stdio mcp starts the server when none is running", async () => {
     assert.equal(await stopServer(dataDir), true);
   } finally {
     t.done();
+  }
+});
+
+test("a project registered only through MCP sees direct file edits", async () => {
+  const s = await setup();
+  try {
+    const p = body(await s.client.callTool({ name: "register_project", arguments: { model_dir: s.modelDir } }));
+    const m = body(await s.client.callTool({ name: "get_model", arguments: { project: p.slug } }));
+    const { readFileSync, writeFileSync } = await import("node:fs");
+    const f = join(s.modelDir, "data", "big-picture.json");
+    const bp = JSON.parse(readFileSync(f, "utf8"));
+    bp.nodes[0].text = "EXTERNAL MCP ONLY";
+    writeFileSync(f, JSON.stringify(bp, null, 2) + "\n");
+    const seen: number[] = [];
+    s.store.on((e) => e.type === "version" && seen.push(e.version));
+    const end = Date.now() + 2000;
+    while (!seen.length && Date.now() < end) await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual(seen, [m.version + 1], "the watcher picked it up without any read");
+  } finally {
+    await s.done();
+  }
+});
+
+test("a project added by the CLI while the server runs gets watched", async () => {
+  const s = await setup();
+  try {
+    await s.registry.register(s.modelDir); // as `event-storming-mcp add` does, outside the server
+    const { readFileSync, writeFileSync } = await import("node:fs");
+    await new Promise((r) => setTimeout(r, 400)); // the server's registry scan
+    const f = join(s.modelDir, "data", "big-picture.json");
+    const bp = JSON.parse(readFileSync(f, "utf8"));
+    bp.nodes[0].text = "ADDED BY CLI";
+    writeFileSync(f, JSON.stringify(bp, null, 2) + "\n");
+    const seen: number[] = [];
+    s.store.on((e) => e.type === "version" && seen.push(e.version));
+    const end = Date.now() + 2000;
+    while (!seen.length && Date.now() < end) await new Promise((r) => setTimeout(r, 50));
+    assert.equal(seen.length, 1);
+  } finally {
+    await s.done();
   }
 });
