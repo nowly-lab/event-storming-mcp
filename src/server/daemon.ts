@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { writeAtomic } from "../store/fsutil.ts";
@@ -47,27 +47,72 @@ function alive(pid: number): boolean {
   }
 }
 
+const STALE_EMPTY_MS = 10_000;
+
 /**
- * Takes the one-server-per-data-folder lock (server.lock, created exclusively). A lock whose process is
- * gone is removed and taken again. Returns false when another live server holds it.
+ * Takes the one-server-per-data-folder lock, server.lock, which holds the owner's pid.
+ *
+ * The lock is published complete: the pid is written to a private temporary file that is then hard-linked
+ * to server.lock, which fails if the lock exists, so nobody ever sees a half-written lock. A lock whose
+ * process is gone (or one left empty for a long time) is taken over by renaming it to a private name and
+ * checking that the renamed file is the one judged stale; if another process replaced it meanwhile, it is
+ * put back and the takeover is abandoned. Returns false when a live process holds the lock.
  */
 export function acquireServerLock(dataDir: string): boolean {
   mkdirSync(dataDir, { recursive: true });
-  const f = join(dataDir, "server.lock");
-  for (let i = 0; i < 2; i++) {
+  const lock = join(dataDir, "server.lock");
+  const unique = () => `${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const tmp = `${lock}.${unique()}.tmp`;
+    writeFileSync(tmp, String(process.pid));
     try {
-      const fd = openSync(f, "wx");
-      writeSync(fd, String(process.pid));
-      closeSync(fd);
+      linkSync(tmp, lock);
       return true;
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
-      const holder = Number(readFileSync(f, "utf8").trim());
-      if (holder && holder !== process.pid && alive(holder)) return false;
-      rmSync(f, { force: true });
+    } finally {
+      rmSync(tmp, { force: true });
     }
+    let seen: string;
+    let age: number;
+    try {
+      seen = readFileSync(lock, "utf8");
+      age = Date.now() - statSync(lock).mtimeMs;
+    } catch {
+      continue; // released meanwhile: try again
+    }
+    const holder = Number(seen.trim());
+    if (holder === process.pid) return true;
+    if (holder > 0 ? alive(holder) : age < STALE_EMPTY_MS) return false;
+    const moved = `${lock}.${unique()}.stale`;
+    try {
+      renameSync(lock, moved);
+    } catch {
+      continue; // someone else moved or released it first
+    }
+    if (readFileSync(moved, "utf8") === seen) {
+      rmSync(moved, { force: true });
+      continue;
+    }
+    // Not the stale lock we judged: a new owner took it between our look and the rename. Put it back.
+    try {
+      linkSync(moved, lock);
+    } catch {
+      // A third process already holds a new lock; the moved one's owner will see it is no longer the holder.
+    }
+    rmSync(moved, { force: true });
+    return false;
   }
   return false;
+}
+
+/** True while server.lock still names this process. The server checks it and stops when it lost the lock. */
+export function holdsServerLock(dataDir: string): boolean {
+  try {
+    return Number(readFileSync(join(dataDir, "server.lock"), "utf8").trim()) === process.pid;
+  } catch {
+    return false;
+  }
 }
 
 export function releaseServerLock(dataDir: string): void {

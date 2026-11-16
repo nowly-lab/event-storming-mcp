@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import type { Command } from "./cli.ts";
 import { startServer } from "./server/http.ts";
-import { acquireServerLock, clearServerInfo, ensureServer, liveServer, releaseServerLock, stopServer, writeServerInfo } from "./server/daemon.ts";
+import { acquireServerLock, clearServerInfo, ensureServer, holdsServerLock, liveServer, releaseServerLock, stopServer, writeServerInfo } from "./server/daemon.ts";
 import { HistoryStore } from "./store/history.ts";
 import { ModelStore } from "./store/model-store.ts";
 import { dataDir } from "./store/paths.ts";
@@ -49,6 +49,13 @@ const serve: Command = async (args, io) => {
     await server.close();
     process.exit(0);
   };
+  // Fail safe: a server that no longer holds the lock stops, so two writers never run for long.
+  setInterval(() => {
+    if (!holdsServerLock(dir)) {
+      io.err("event-storming-mcp: server.lock を別のサーバーが持っているので止まります。\n");
+      void server.close().then(() => process.exit(1));
+    }
+  }, 2000).unref();
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
   return new Promise<number>(() => {});
