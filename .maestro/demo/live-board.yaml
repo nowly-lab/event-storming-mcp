@@ -13,27 +13,32 @@ url: ${MAESTRO_ESM_URL}
 - extendedWaitUntil:
     visible: "バーコードを読み取る"
     timeout: 60000
+# Zoom the board to about 45% so the stickies read in the video.
+- tapOn: "＋"
+- tapOn: "＋"
+- tapOn: "＋"
+- tapOn: "＋"
 # Lead-in so the recording starts before the first action.
 - extendedWaitUntil:
     visible: "この文字は出ません"
     timeout: 9000
     optional: true
 - evalScript:
-    script: "${http.post('http://127.0.0.1:8798/apply?project=shop-ddfa4c&id=scanned&text=' + encodeURIComponent('JANコードで商品が分かった'), { body: '' }).body}"
+    script: "${http.post('http://127.0.0.1:8798/apply?project=shop-ddfa4c&id=priced&text=' + encodeURIComponent('相場を3社から取得した'), { body: '' }).body}"
     label: "Claude が MCP で直す"
 - extendedWaitUntil:
-    visible: "JANコードで商品が分かった"
+    visible: "相場を3社から取得した"
     timeout: 5000
     label: "すぐ描き直される"
 - tapOn:
-    text: "型番を入力した"
+    text: "相場と見込み利益"
 - tapOn:
     text: "文字を直す"
     label: "図の上で文字を直す"
-- inputText: "型番を手で入力した"
+- inputText: "相場と見込み利益（税込）"
 - pressKey: Enter
 - extendedWaitUntil:
-    visible: "型番を手で入力した"
+    visible: "相場と見込み利益（税込）"
     timeout: 5000
 - tapOn:
     text: "履歴"
