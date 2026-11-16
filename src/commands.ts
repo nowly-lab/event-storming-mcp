@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import type { Command } from "./cli.ts";
 import { startServer } from "./server/http.ts";
-import { clearServerInfo, ensureServer, liveServer, lockPort, stopServer, writeServerInfo } from "./server/daemon.ts";
+import { acquireFolderLock, clearServerInfo, ensureServer, liveServer, stopServer, writeServerInfo } from "./server/daemon.ts";
 import { mkdirSync } from "node:fs";
 import { HistoryStore } from "./store/history.ts";
 import { ModelStore } from "./store/model-store.ts";
@@ -33,16 +33,10 @@ const serve: Command = async (args, io) => {
     return 0;
   }
   mkdirSync(dir, { recursive: true });
-  const port = values.port ? Number(values.port) : lockPort(dir);
-  const registry = new ProjectRegistry(dir);
-  const history = new HistoryStore(dir);
-  const store = new ModelStore({ registry, history });
-  const { attachMcp } = await import("./mcp/http.ts");
-  const deps = { store, registry, history, webRoot: WEB, port };
-  let server: Awaited<ReturnType<typeof startServer>>;
+  // Own the data folder before touching any model or history: one server per folder, whatever HTTP port it uses.
+  let lock: { release(): Promise<void> };
   try {
-    // Listening on the folder's port is the lock: a second server cannot get it.
-    server = await startServer({ ...deps, mcp: attachMcp(deps, () => server.url, openBrowser) });
+    lock = await acquireFolderLock(dir);
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "EADDRINUSE") throw e;
     // The winner of a simultaneous start may not have published server.json yet: give it a moment.
@@ -52,7 +46,21 @@ const serve: Command = async (args, io) => {
       live = await liveServer(dir);
     }
     if (live) io.err("event-storming-mcp: サーバーはもう動いています（status で確かめられます）。\n");
-    else io.err(`event-storming-mcp: ポート ${port} を別のプログラムが使っています。EVENT_STORMING_MCP_PORT で別のポートを指定してください。\n`);
+    else io.err("event-storming-mcp: このデータフォルダの見張り用ポートを別のプログラムが使っています。EVENT_STORMING_MCP_DATA_DIR で別のフォルダを指定してください。\n");
+    return 1;
+  }
+  const registry = new ProjectRegistry(dir);
+  const history = new HistoryStore(dir);
+  const store = new ModelStore({ registry, history });
+  const { attachMcp } = await import("./mcp/http.ts");
+  const deps = { store, registry, history, webRoot: WEB, port: values.port ? Number(values.port) : Number(process.env.EVENT_STORMING_MCP_PORT) || 0 };
+  let server: Awaited<ReturnType<typeof startServer>>;
+  try {
+    server = await startServer({ ...deps, mcp: attachMcp(deps, () => server.url, openBrowser) });
+  } catch (e) {
+    await lock.release();
+    if ((e as NodeJS.ErrnoException).code !== "EADDRINUSE") throw e;
+    io.err(`event-storming-mcp: ポート ${deps.port} は使われています。--port か EVENT_STORMING_MCP_PORT で別のポートを指定してください。\n`);
     return 1;
   }
   await writeServerInfo(dir, { port: server.port, pid: process.pid, version: VERSION, url: server.url });
@@ -60,6 +68,7 @@ const serve: Command = async (args, io) => {
   const shutdown = async () => {
     await clearServerInfo(dir, process.pid);
     await server.close();
+    await lock.release();
     process.exit(0);
   };
   process.on("SIGTERM", shutdown);

@@ -69,7 +69,7 @@ Exit codes: 0 ok, 1 fix the data or pages, 2 usage.
 
 - State lives in `~/.event-storming-mcp` (`EVENT_STORMING_MCP_DATA_DIR` changes it): `projects/<slug>/project.json`, `projects/<slug>/history.jsonl` (one line per version) and `blobs/<sha256>` (file contents, stored once). No database.
 - The server listens on 127.0.0.1 only and checks the Host header. Page writes carry a per-page nonce; `/mcp` refuses requests with an `Origin` header.
-- One server per data folder: it listens on a port derived from the folder (`EVENT_STORMING_MCP_PORT` sets it), and the operating system lets only one process hold that port.
+- One server per data folder: before touching any model it listens on a lock port derived only from the folder, and the operating system lets one process hold that port. The page's HTTP port is separate (random, or `--port` / `EVENT_STORMING_MCP_PORT`).
 - `EVENT_STORMING_MCP_BROWSER=none` opens no browser.
 
 ## Develop

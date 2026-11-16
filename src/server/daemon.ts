@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { createServer as createNetServer } from "node:net";
 import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -40,14 +41,12 @@ export async function liveServer(dataDir: string): Promise<ServerInfo | null> {
 }
 
 /**
- * The port that is the server's lock. It is derived from the data folder (or set by
- * EVENT_STORMING_MCP_PORT), and the server listens on it: the operating system lets only one process
- * listen on a port and frees it when that process ends, so there is never a second writer and never a
- * stale lock to recover.
+ * The port that is the server's lock, derived only from the data folder (never from settings, so every
+ * process for one folder contends for the same one). Whoever listens on it first owns the folder: the
+ * operating system lets one process hold a port and frees it when that process ends, so there is never
+ * a second writer and never a stale lock to recover.
  */
-export function lockPort(dataDir: string, env: Record<string, string | undefined> = process.env): number {
-  const fixed = Number(env.EVENT_STORMING_MCP_PORT);
-  if (Number.isInteger(fixed) && fixed > 0 && fixed < 65536) return fixed;
+export function lockPort(dataDir: string): number {
   let real = dataDir;
   try {
     real = realpathSync(dataDir);
@@ -55,6 +54,19 @@ export function lockPort(dataDir: string, env: Record<string, string | undefined
     // Not created yet: the path as given.
   }
   return 40000 + (createHash("sha256").update(real).digest().readUInt32BE(0) % 20000);
+}
+
+/** Takes the data folder's lock before anything reads or writes the models. Resolves to the held lock. */
+export function acquireFolderLock(dataDir: string): Promise<{ release(): Promise<void> }> {
+  const lock = createNetServer((socket) => socket.destroy());
+  return new Promise((resolve, reject) => {
+    lock.once("error", reject);
+    lock.listen(lockPort(dataDir), "127.0.0.1", () => {
+      lock.off("error", reject);
+      lock.unref();
+      resolve({ release: () => new Promise((r) => lock.close(() => r())) });
+    });
+  });
 }
 
 /** Returns the running server, starting a detached one when none answers (a stale server.json is replaced). */
