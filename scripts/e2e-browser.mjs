@@ -48,7 +48,7 @@ await f.dblclick(`#n-${ev.id}`);
 await f.fill('.esm-input', '画面で直した');
 await f.press('.esm-input', 'Enter');
 await page.waitForTimeout(600);
-check('ダブルクリックで直した文字が JSON に入る', bp().nodes.find((n) => n.id === ev.id).text === '画面で直した');
+check('ダブルクリックで直した文字が JSON に入り、競合の表示は出ない', bp().nodes.find((n) => n.id === ev.id).text === '画面で直した' && await page.locator('#conflict').isHidden());
 
 // 3. Add a sticky after the selected one.
 await f.click(`#n-${ev.id}`);

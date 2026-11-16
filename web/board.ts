@@ -170,8 +170,9 @@ export class Board {
   }
 
   closeEditor(): void {
-    this.doc?.querySelector(".esm-input")?.remove();
+    // Clear first: removing the focused field fires its blur, which must not commit again.
     this.editing = null;
+    this.doc?.querySelector(".esm-input")?.remove();
   }
 
   get selection(): string | null {

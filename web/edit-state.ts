@@ -28,7 +28,8 @@ export function reduce(s: EditState, e: EditEvent): { state: EditState; effects:
     case "typing":
       return s.draft ? { state: { ...s, draft: { ...s.draft, text: e.text } }, effects: [] } : { state: s, effects: [] };
     case "commitText": {
-      if (!s.draft) return { state: s, effects: [] };
+      // Only from the open editor: Enter and the blur that follows it must not save twice.
+      if (!s.draft || s.mode !== "text") return { state: s, effects: [] };
       const text = s.draft.text.replace(/\s*\n\s*/g, " ").trim();
       if (!text) return { state: s, effects: [{ type: "error", message: "付箋の文字を空にはできません。消すときはツールバーの「削除」を使ってください。" }] };
       if (text === s.draft.original) return finish({ ...s, draft: undefined });

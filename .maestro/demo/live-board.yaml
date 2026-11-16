@@ -1,0 +1,47 @@
+# Demo: the live board. An agent edits through MCP and the board redraws; a person fixes a sticky on the board; history compares versions.
+# Local stack (from the PR's worktree):
+#   npm install && npm run build
+#   export EVENT_STORMING_MCP_DATA_DIR=$(mktemp -d) EVENT_STORMING_MCP_BROWSER=none
+#   a git repo with test/model/fixtures/sample copied to docs-model and origin https://example.com/acme/shop.git, then
+#   node dist/cli.js render <repo>/docs-model && node dist/cli.js add <repo>/docs-model   # project slug: shop-ddfa4c
+#   export MAESTRO_ESM_URL=$(node dist/cli.js serve --no-open)
+#   node .maestro/demo/agent.mjs $MAESTRO_ESM_URL &      # the "Claude" side, on 127.0.0.1:8798
+#   python3 <implementation>/scripts/demo-video/demo_take.py web .maestro/demo/live-board.yaml <out> --points 1440x900 --window-title ライブボード
+url: ${MAESTRO_ESM_URL}
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "バーコードを読み取る"
+    timeout: 60000
+# Lead-in so the recording starts before the first action.
+- extendedWaitUntil:
+    visible: "この文字は出ません"
+    timeout: 9000
+    optional: true
+- evalScript:
+    script: "${http.post('http://127.0.0.1:8798/apply?project=shop-ddfa4c&id=scanned&text=' + encodeURIComponent('JANコードで商品が分かった'), { body: '' }).body}"
+    label: "Claude が MCP で直す"
+- extendedWaitUntil:
+    visible: "JANコードで商品が分かった"
+    timeout: 5000
+    label: "すぐ描き直される"
+- tapOn:
+    text: "型番を入力した"
+- tapOn:
+    text: "文字を直す"
+    label: "図の上で文字を直す"
+- inputText: "型番を手で入力した"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "型番を手で入力した"
+    timeout: 5000
+- tapOn:
+    text: "履歴"
+    label: "変更の前後を比べる"
+- extendedWaitUntil:
+    visible: "変更前.*"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "この文字も出ません"
+    timeout: 3000
+    optional: true

@@ -113,3 +113,13 @@ test("distanceToPath measures the closest point of a path", () => {
   assert.ok(distanceToPath(a, 50, 2) < distanceToPath(b, 50, 2));
   assert.ok(Math.abs(distanceToPath(a, 50, 2) - 2) < 0.1);
 });
+
+test("a second commit while saving (blur after Enter) sends nothing", () => {
+  let s = reduce(initialEdit(), { type: "startText", id: "n1", text: "前" }).state;
+  s = reduce(s, { type: "typing", text: "後" }).state;
+  const first = reduce(s, { type: "commitText" });
+  assert.equal(first.effects.length, 1);
+  const again = reduce(first.state, { type: "commitText" });
+  assert.deepEqual(again.effects, []);
+  assert.equal(again.state.mode, "saving");
+});

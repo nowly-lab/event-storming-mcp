@@ -246,6 +246,7 @@ function renderNav(): void {
     return a;
   }));
   const p = projects.find((x) => x.slug === slug);
+  document.title = p ? `${p.name} · ライブボード · event-storming-mcp` : "event-storming-mcp";
   $("title").textContent = p ? p.name : projects.length ? "プロジェクトを選んでください" : "プロジェクトがありません（event-storming-mcp add <model-dir> か MCP の register_project で登録）";
   $("tabs").replaceChildren(...(p ? PAGES : []).map(([f, ja]) => {
     const a = document.createElement("a");
