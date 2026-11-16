@@ -6,7 +6,8 @@ export const PAN_THRESHOLD = 4;
 
 /**
  * True when a press may start a pan: the left mouse button or a pen, on empty canvas or an arrow.
- * Stickies, buttons, links, form fields and anything marked data-no-pan keep their own pointer behaviour.
+ * Stickies, buttons, links, form fields and anything marked data-no-pan keep their own pointer behaviour
+ * (.zoom-ctrl sits beside the view, not in it; it is listed in case a page puts controls inside).
  * Touch is left to the browser, which already scrolls with a finger.
  */
 export function canStartPan(e) {

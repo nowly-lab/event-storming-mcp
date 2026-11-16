@@ -62,6 +62,12 @@ await page.mouse.move(fr0.x + back.x + 160, fr0.y + back.y + 90, { steps: 10 });
 await page.mouse.up();
 const s2 = await scroll();
 check('動かした後に付箋の選択や矢印の選択が起きない', Math.abs(s2.x - s0.x) <= 3 && Math.abs(s2.y - s0.y) <= 3 && await f.locator('.esm-tools').count() === 0 && await f.locator('.edge.esm-sel').count() === 0);
+// The guard against the click that ends a pan must not eat a later keyboard click.
+const zoomBefore = await f.textContent('.zoom-ctrl output');
+await f.focus('.zoom-ctrl [data-z="fit"]');
+await f.press('.zoom-ctrl [data-z="fit"]', 'Enter');
+const zoomText = await f.textContent('.zoom-ctrl output');
+check('動かした後もキーボードで「全体」が押せる', zoomText !== zoomBefore, `${zoomBefore} → ${zoomText}`);
 await f.click('.zoom-ctrl [data-z="one"]');
 
 // 1. MCP change redraws within 1 s, with a toast.

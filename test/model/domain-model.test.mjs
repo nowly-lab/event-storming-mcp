@@ -342,7 +342,7 @@ const at = (hit) => ({ closest: (sel) => (sel.split(',').some((s) => hit.include
 test('canStartPan: left mouse or pen on empty canvas or an arrow, never on stickies, tools, inputs or touch', () => {
   assert.equal(canStartPan({ button: 0, pointerType: 'mouse', target: at([]) }), true);
   assert.equal(canStartPan({ button: 0, pointerType: 'pen', target: at(['path.edge']) }), true);
-  for (const sel of ['.note', '[data-no-pan]', '.zoom-ctrl', 'a', 'button', 'textarea', 'input']) {
+  for (const sel of ['.note', '[data-no-pan]', '.zoom-ctrl', 'a', 'button', 'textarea', 'input', 'select', '[contenteditable]']) {
     assert.equal(canStartPan({ button: 0, pointerType: 'mouse', target: at([sel]) }), false, sel);
   }
   assert.equal(canStartPan({ button: 2, pointerType: 'mouse', target: at([]) }), false);

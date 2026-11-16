@@ -181,6 +181,8 @@ document.querySelectorAll('.zoomable').forEach(function (box) {
   var p = null;
   function movePan(e) {
     if (!p || e.pointerId !== p.id) return;
+    // Released outside the page before the pan began: no pointerup came, so end it here.
+    if (e.pointerType === 'mouse' && !(e.buttons & 1)) return endPan(e);
     var n = panStep(p.start, e.clientX, e.clientY, p.moving, PAN_THRESHOLD);
     if (n.moving && !p.moving) {
       p.moving = true; view.classList.add('panning'); view.setPointerCapture(e.pointerId);
@@ -196,11 +198,12 @@ document.querySelectorAll('.zoomable').forEach(function (box) {
     if (p.moving) {
       view.classList.remove('panning');
       if (view.hasPointerCapture(e.pointerId)) view.releasePointerCapture(e.pointerId);
-      // A release outside the page fires no click, so the next press drops the guard instead.
-      var drop = function () { document.removeEventListener('click', swallow, true); document.removeEventListener('pointerdown', drop, true); };
+      // The click comes in the same task as pointerup, so the guard is dropped right after it; a later
+      // click (from the keyboard, or after a release outside the page that fired none) is never eaten.
+      var drop = function () { document.removeEventListener('click', swallow, true); };
       var swallow = function (c) { c.stopPropagation(); c.preventDefault(); drop(); };
       document.addEventListener('click', swallow, true);
-      document.addEventListener('pointerdown', drop, true);
+      setTimeout(drop, 0);
     }
     p = null;
   }
