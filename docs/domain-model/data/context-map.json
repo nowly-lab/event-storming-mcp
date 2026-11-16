@@ -1,0 +1,131 @@
+{
+  "schema": "context-map/v1",
+  "title": "境界",
+  "checked": {
+    "revision": "7338f27",
+    "date": "2026-11-16"
+  },
+  "contexts": [
+    {
+      "id": "store",
+      "name": "モデルの保存と版",
+      "tech": "Node・ファイル（project.json・history.jsonl・blobs）",
+      "responsibility": "登録プロジェクト、版、検証、競合、ファイル監視",
+      "owns": [
+        "~/.event-storming-mcp",
+        "製品リポジトリの data/*.json と生成HTMLへの書き込み"
+      ],
+      "contract": [
+        "ModelStore.read / apply / restore / ingest",
+        "ApplyResult（ok・conflict・invalid）"
+      ],
+      "guarantees": [
+        "古い版からの書き込みは断る",
+        "構造の誤りは保存しない"
+      ],
+      "domains": [
+        "setup",
+        "meeting",
+        "history"
+      ],
+      "evidence": [
+        {
+          "path": "src/store/model-store.ts",
+          "symbol": "export type ApplyResult",
+          "role": "source"
+        }
+      ]
+    },
+    {
+      "id": "server",
+      "name": "ローカルサーバーと MCP",
+      "tech": "node:http・MCP SDK（Streamable HTTP と stdio 中継）",
+      "responsibility": "画面の API・ライブ通知・MCP のツール",
+      "owns": [
+        "server.json"
+      ],
+      "contract": [
+        "/api/projects/...",
+        "/mcp の 10 ツール"
+      ],
+      "guarantees": [
+        "127.0.0.1 だけで待ち受ける",
+        "画面からの書き込みは nonce 必須、/mcp は Origin 付きを断る"
+      ],
+      "domains": [
+        "setup",
+        "meeting"
+      ],
+      "evidence": [
+        {
+          "path": "src/server/http.ts",
+          "symbol": "export async function startServer",
+          "role": "source"
+        }
+      ]
+    },
+    {
+      "id": "web",
+      "name": "会議ボードの画面",
+      "tech": "TypeScript・esbuild・iframe で生成ページを表示",
+      "responsibility": "描き直し、図の上での編集、履歴の前後比較",
+      "owns": [
+        "画面の編集状態"
+      ],
+      "contract": [
+        "画面 API（nonce 付き）"
+      ],
+      "domains": [
+        "meeting",
+        "history"
+      ],
+      "evidence": [
+        {
+          "path": "web/main.ts",
+          "symbol": "async function go",
+          "role": "ui"
+        }
+      ]
+    },
+    {
+      "id": "engine",
+      "name": "モデルの検証と描画",
+      "tech": "JavaScript（model/）・ELK",
+      "responsibility": "データ形式の検証と HTML の描画、CLI",
+      "owns": [
+        "model/",
+        "docs/data-format.md"
+      ],
+      "contract": [
+        "init / validate / render / check --repo"
+      ],
+      "domains": [
+        "cli"
+      ],
+      "evidence": [
+        {
+          "path": "model/lib/render.mjs",
+          "symbol": "export async function renderModel",
+          "role": "source"
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "from": "server",
+      "to": "store",
+      "label": "読み書きと版の通知"
+    },
+    {
+      "from": "web",
+      "to": "server",
+      "label": "画面 API と SSE"
+    },
+    {
+      "from": "store",
+      "to": "engine",
+      "label": "検証と描画"
+    }
+  ]
+}

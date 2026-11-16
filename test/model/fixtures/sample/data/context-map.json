@@ -1,0 +1,58 @@
+{
+  "schema": "context-map/v1",
+  "title": "コンテキスト",
+  "checked": {
+    "revision": "abc1234",
+    "date": "2026-11-07"
+  },
+  "contexts": [
+    {
+      "id": "app",
+      "name": "アプリ",
+      "tech": "React",
+      "responsibility": "バイヤーの操作を受ける",
+      "owns": [
+        "画面の状態"
+      ],
+      "contract": [
+        "仕入れ判断 API"
+      ],
+      "domains": [
+        "visit"
+      ]
+    },
+    {
+      "id": "api",
+      "name": "仕入れ API",
+      "tech": "Worker",
+      "responsibility": "判断を記録する",
+      "owns": [
+        "仕入れ判断"
+      ],
+      "contract": [
+        "POST /decisions"
+      ],
+      "guarantees": [
+        "同じ判断を二度記録しない"
+      ],
+      "domains": [
+        "sourcing"
+      ],
+      "evidence": [
+        {
+          "path": "src/sourcing.ts",
+          "symbol": "recordDecision"
+        }
+      ],
+      "changed": true
+    }
+  ],
+  "relations": [
+    {
+      "from": "app",
+      "to": "api",
+      "label": "HTTP",
+      "changed": true
+    }
+  ]
+}

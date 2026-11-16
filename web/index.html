@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="esm-nonce" content="__NONCE__">
+<title>event-storming-mcp</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect x=%271%27 y=%273%27 width=%2714%27 height=%2710%27 rx=%272%27 fill=%27%23ff9f43%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<aside class="side">
+  <div class="brand">event-storming / MCP</div>
+  <h2>プロジェクト</h2>
+  <nav id="projects" class="projects" aria-label="プロジェクト"></nav>
+  <div class="live" id="live"><i></i><span>接続中…</span></div>
+</aside>
+<div class="main">
+  <header class="head">
+    <div class="title-row"><h1 id="title">プロジェクトを選んでください</h1><label class="target" id="target-wrap" hidden>書き込み先 <select id="target"></select></label></div>
+    <nav class="tabs" id="tabs" aria-label="ページ"></nav>
+  </header>
+  <div class="bar" id="bar" hidden>
+    <div class="add-wrap"><button type="button" id="add" class="btn primary">+ 付箋</button><div class="palette" id="palette" hidden></div></div>
+    <span class="hint">ダブルクリックで文字を直す ・ 付箋の右の丸から引っぱって矢印 ・ 矢印を選んで Delete で削除</span>
+    <details class="rules" id="rules" hidden><summary></summary><ul></ul></details>
+  </div>
+  <div class="stage-wrap">
+  <div class="notices">
+    <div class="banner warn" id="conflict" hidden><span>Claude が先に変更しました。最新を読み込んで編集し直してください</span><button type="button" class="btn" id="reload-latest">最新を読み込む</button></div>
+    <div class="banner info" id="pending" hidden></div>
+    <div class="banner error" id="file-error" hidden></div>
+  </div>
+  <div class="stage" id="stage"></div>
+  </div>
+  <section class="history" id="history" hidden>
+    <div class="h-list"><h2>変更履歴</h2><ol id="h-items"></ol></div>
+    <div class="h-detail" id="h-detail"></div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<div class="modal" id="modal" hidden><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title"><h2 id="modal-title"></h2><div id="modal-body"></div><div class="actions" id="modal-actions"></div></div></div>
+<script type="module" src="/main.js"></script>
+</body>
+</html>

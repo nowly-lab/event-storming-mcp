@@ -1,0 +1,105 @@
+{
+  "schema": "domain-glossary/v1",
+  "title": "用語とコード名",
+  "checked": {
+    "revision": "7338f27",
+    "date": "2026-11-16"
+  },
+  "terms": [
+    {
+      "term": "登録プロジェクト",
+      "meaning": "リポジトリとその中のモデルフォルダの組。作業場所が複数あっても1つ",
+      "code": [
+        "Project",
+        "ProjectRegistry"
+      ],
+      "nodes": [
+        "reg",
+        "reg-agg"
+      ],
+      "evidence": [
+        {
+          "path": "src/store/registry.ts",
+          "symbol": "export class ProjectRegistry",
+          "role": "source"
+        }
+      ]
+    },
+    {
+      "term": "モデルの版",
+      "meaning": "MCP・画面・ファイルの直接編集のたびに増える版番号とその時点のデータ。古い版からの書き込みは断る",
+      "code": [
+        "ModelStore",
+        "VersionEntry"
+      ],
+      "nodes": [
+        "version-a",
+        "version-p",
+        "version-f",
+        "version-r"
+      ],
+      "evidence": [
+        {
+          "path": "src/store/history.ts",
+          "symbol": "export type VersionEntry",
+          "role": "source"
+        }
+      ]
+    },
+    {
+      "term": "書きかけの版",
+      "meaning": "構造は正しいがモデルの決まりに違反している版。保存して図に赤く示し、コミット用HTMLは書かない",
+      "code": [
+        "validateStructure",
+        "warnings"
+      ],
+      "nodes": [
+        "draft"
+      ],
+      "evidence": [
+        {
+          "path": "model/lib/validate.mjs",
+          "symbol": "export function validateStructure",
+          "role": "source"
+        }
+      ]
+    },
+    {
+      "term": "会議ボード",
+      "meaning": "サーバーが映す生きた全体像。モデルが変わると開いている画面がすぐ描き直される",
+      "code": [
+        "Board"
+      ],
+      "nodes": [
+        "board",
+        "open-done"
+      ],
+      "evidence": [
+        {
+          "path": "web/board.ts",
+          "symbol": "class Board",
+          "role": "ui"
+        }
+      ]
+    },
+    {
+      "term": "操作",
+      "meaning": "モデルへの1つの変更。MCP と画面が同じ形で送る",
+      "code": [
+        "OpSchema",
+        "applyOps"
+      ],
+      "nodes": [
+        "agent-apply",
+        "person-edit"
+      ],
+      "evidence": [
+        {
+          "path": "src/model/ops.ts",
+          "symbol": "export const OpSchema",
+          "role": "source"
+        }
+      ]
+    }
+  ]
+}

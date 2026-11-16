@@ -1,0 +1,34 @@
+{
+  "schema": "domain-glossary/v1",
+  "title": "用語集",
+  "checked": {
+    "revision": "abc1234",
+    "date": "2026-11-07"
+  },
+  "terms": [
+    {
+      "term": "仕入れ判断",
+      "meaning": "商品を仕入れるか見送るかの決定",
+      "code": [
+        "recordDecision"
+      ],
+      "nodes": [
+        "decide",
+        "decided"
+      ],
+      "evidence": [
+        {
+          "path": "src/sourcing.ts",
+          "symbol": "recordDecision"
+        }
+      ]
+    },
+    {
+      "term": "相場",
+      "meaning": "価格比較サービスから取った販売価格",
+      "nodes": [
+        "priced"
+      ]
+    }
+  ]
+}
