@@ -3,7 +3,7 @@ import { Board } from "./board.ts";
 import { connectLive, toastText, warningNodeIds } from "./live.ts";
 import { reduce, initialEdit, edgeKindFor, canRebase, type Effect, type EditState } from "./edit-state.ts";
 import { showHistory } from "./history.ts";
-import type { Model, NodeType, Op, Project, Removal } from "./types.ts";
+import type { ApplyResult, Model, NodeType, Op, Project, Removal } from "./types.ts";
 
 const PAGES: [string, string][] = [
   ["big-picture.html", "全体像"], ["domain-glossary.html", "用語集"], ["event-command-map.html", "イベントとコマンド"],
@@ -58,9 +58,9 @@ async function run(f: Effect): Promise<void> {
 }
 
 /** Sends ops based on the version on screen. A conflict keeps the draft; an invalid op shows why. */
-async function save(ops: Op[], anchor?: string, fromText = false, original?: string): Promise<void> {
+async function save(ops: Op[], anchor?: string, fromText = false, original?: string, baseVersion = version): Promise<ApplyResult | null> {
   try {
-    let r = await api.apply(slug, version, ops);
+    let r = await api.apply(slug, baseVersion, ops);
     if (!r.ok && r.reason === "conflict") {
       // Someone else saved meanwhile. Redo the edit on the latest version when it does not touch what they changed.
       const latest = await api.model(slug);
@@ -76,14 +76,20 @@ async function save(ops: Op[], anchor?: string, fromText = false, original?: str
       await reload(anchor);
       board.mark([...r.summary.added, ...r.summary.updated], warningNodeIds(r.warnings, model!["big-picture"].nodes.map((n) => n.id)));
       if (r.warnings.length) toast(`保存しました（決まりの違反 ${r.warnings.length} 件。HTML はまだ書いていません）`);
-      return;
+      return r;
     }
-    if (r.reason === "conflict") return dispatch({ type: "conflict" });
+    if (r.reason === "conflict") {
+      if (ops.some((o) => o.op === "removeNode")) return r; // the caller asks again with a fresh list
+      dispatch({ type: "conflict" });
+      return r;
+    }
     toast(r.errors.join(" / "), true);
     if (!fromText) dispatch({ type: "idle" });
+    return r;
   } catch (e) {
     toast((e as Error).message, true);
     dispatch({ type: "idle" });
+    return null;
   }
 }
 
@@ -108,13 +114,14 @@ function setWarnings(w: string[], htmlCurrent: boolean): void {
   el.querySelector("ul")!.replaceChildren(...w.map((x) => Object.assign(document.createElement("li"), { textContent: x })));
 }
 
-async function confirmRemove(id: string): Promise<void> {
-  let r: Removal;
+async function confirmRemove(id: string, again = false): Promise<void> {
+  let preview: { version: number; removal: Removal };
   try {
-    r = await api.previewRemove(slug, id);
+    preview = await api.previewRemove(slug, id);
   } catch (e) {
     return toast((e as Error).message, true);
   }
+  const r = preview.removal;
   const text = (nid: string) => model?.["big-picture"].nodes.find((n) => n.id === nid)?.text ?? nid;
   const items = [
     ...r.attached.map((x) => `貼られた付箋「${text(x)}」`),
@@ -123,8 +130,15 @@ async function confirmRemove(id: string): Promise<void> {
     ...r.transitions.map((t) => `状態遷移 ${t.lifecycle}: ${t.from} → ${t.to}`),
     ...r.rejections.map((x) => `拒否 ${x.lifecycle}: ${x.state}`),
   ];
-  const ok = await modal(`付箋「${text(id)}」を消します`, items.length ? `<p>一緒に消えるもの（${items.length}）:</p><ul>${items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><p>履歴から戻せます。</p>` : "<p>一緒に消えるものはありません。履歴から戻せます。</p>", "消す");
-  if (ok) await save([{ op: "removeNode", id }]);
+  const lead = again ? "<p><b>確認している間にモデルが変わったので、もう一度確かめてください。</b></p>" : "";
+  const ok = await modal(`付箋「${text(id)}」を消します`, lead + (items.length ? `<p>一緒に消えるもの（${items.length}）:</p><ul>${items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><p>履歴から戻せます。</p>` : "<p>一緒に消えるものはありません。履歴から戻せます。</p>"), "消す");
+  if (!ok) return;
+  // The delete goes against the version the list was made from; if anything changed, show the new list.
+  const res = await save([{ op: "removeNode", id }], undefined, false, undefined, preview.version);
+  if (res && !res.ok && res.reason === "conflict") {
+    await reload();
+    if (model?.["big-picture"].nodes.some((n) => n.id === id)) await confirmRemove(id, true);
+  }
 }
 
 function modal(title: string, body: string, okLabel: string): Promise<boolean> {
@@ -214,10 +228,11 @@ async function go(s: string, p: string): Promise<void> {
 
 function renderHistory(): Promise<void> {
   return showHistory(slug, { list: $("h-items"), detail: $("h-detail") }, async (v) => {
+    const seen = version;
     const ok = await modal(`版 ${v} に戻します`, "<p>今の版は履歴に残ります。戻すことも新しい版として記録します。</p>", "戻す");
     if (!ok) return;
-    const r = await api.restore(slug, v);
-    if (!r.ok) toast(r.reason === "invalid" ? r.errors.join(" / ") : "戻せませんでした", true);
+    const r = await api.restore(slug, v, seen);
+    if (!r.ok) toast(r.reason === "invalid" ? r.errors.join(" / ") : "確認している間に別の変更が入りました。履歴を確かめてから、もう一度戻してください。", true);
     await reload();
   });
 }

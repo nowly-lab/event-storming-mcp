@@ -94,11 +94,13 @@ const pt = await path.evaluate((p) => {
   }
   return null;
 });
+const edgesBefore = bp().edges.length;
 const fr = await page.locator('iframe').boundingBox();
 await page.mouse.click(fr.x + pt.x, fr.y + pt.y);
 await f.press('body', 'Delete');
 await page.waitForTimeout(700);
-check('矢印を選んで Delete で消える', !bp().edges.some((e) => e.from === added.id && e.to === target.id), pb && pt ? '' : 'no clickable point');
+const edgesAfter = bp().edges.length;
+check('矢印を選んで Delete で、その矢印だけが消える', !bp().edges.some((e) => e.from === added.id && e.to === target.id) && edgesAfter === edgesBefore - 1 && bp().edges.some((e) => e.from === ev.id && e.to === added.id), pb && pt ? `${edgesBefore}→${edgesAfter}` : 'no clickable point');
 
 // 6. Delete a sticky: the list of what goes with it, then confirm.
 await focus(added.id);
@@ -107,9 +109,18 @@ await f.click('.esm-tools [data-a="remove"]');
 await page.waitForSelector('#modal:not([hidden])');
 const listText = await page.textContent('#modal-body');
 await page.screenshot({ path: join(out, '04-remove-confirm.png') });
+// While the list is open, an agent attaches a new note to the sticky: confirming must ask again with it listed.
+const m3 = await call('get_model', { project: slug });
+await call('apply_changes', { project: slug, base_version: m3.version, ops: [{ op: 'addNode', node: { id: 'unseen-note', type: 'hotspot', domain: added.domain, text: 'UNSEEN CASCADE', attach: { to: added.id, pos: 'below' } } }] });
+await page.waitForTimeout(600);
+await page.click('#modal-actions [data-v="1"]');
+await page.waitForFunction(() => /もう一度確かめて/.test(document.getElementById('modal-body')?.textContent ?? '') && !document.getElementById('modal').hidden, null, { timeout: 4000 });
+const second = await page.textContent('#modal-body');
+const stillThere = bp().nodes.some((n) => n.id === added.id);
+check('確認中に増えたものは黙って消さず、一覧を出し直す', stillThere && /UNSEEN CASCADE/.test(second));
 await page.click('#modal-actions [data-v="1"]');
 await page.waitForTimeout(700);
-check('付箋を消す前に一緒に消えるものが出て、消える', /矢印/.test(listText) && !bp().nodes.some((n) => n.id === added.id));
+check('付箋を消す前に一緒に消えるものが出て、消える', /矢印/.test(listText) && !bp().nodes.some((n) => n.id === added.id || n.id === 'unseen-note'));
 
 // 7. A draft survives a remote change, and the change waits.
 await focus(ev.id);
@@ -140,7 +151,7 @@ await page.click('[data-restore]');
 await page.click('#modal-actions [data-v="1"]');
 await page.waitForTimeout(800);
 const hist = await call('list_history', { project: slug, limit: 1 });
-check('履歴に一覧が出て、この版に戻すと新しい版として記録される', rows >= 6 && /に戻した/.test(hist[0].summary), `${rows} 行`);
+check('履歴に一覧が出て、この版に戻すと新しい版として記録される', rows >= 7 && /に戻した/.test(hist[0].summary), `${rows} 行`);
 await page.screenshot({ path: join(out, '07-restored.png') });
 
 check('画面にスクリプトエラーがない', errors.length === 0, errors.join(' / '));

@@ -132,8 +132,10 @@ export async function startServer(deps: ServerDeps): Promise<RunningServer> {
         const b = ChangesBody.parse(body);
         return store.apply(slug, { baseVersion: b.baseVersion, ops: b.ops, author: { kind: "person" } });
       }
-      case "preview-remove":
-        return previewRemoveNode((await store.read(slug)).data, RemoveBody.parse(body).id);
+      case "preview-remove": {
+        const r = await store.read(slug);
+        return { version: r.version, removal: previewRemoveNode(r.data, RemoveBody.parse(body).id) };
+      }
       case "restore":
       {
         const b = RestoreBody.parse(body);

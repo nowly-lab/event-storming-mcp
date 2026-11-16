@@ -71,7 +71,7 @@ export function canRebase(ops: Op[], latest: Model, original?: string): boolean 
   return ops.every((o) => {
     if (o.op === "updateNode") return nodes.get(o.id)?.text === original;
     if (o.op === "addEdge" || o.op === "removeEdge") return nodes.has(o.from) && nodes.has(o.to);
-    if (o.op === "removeNode") return nodes.has(o.id);
+    if (o.op === "removeNode") return false;
     return o.op === "addNode" && (!o.after || nodes.has(o.after));
   });
 }

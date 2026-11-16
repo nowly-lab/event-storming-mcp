@@ -337,19 +337,34 @@ function zoomOf(board: HTMLElement): number {
   const r = board.getBoundingClientRect();
   return board.offsetWidth ? r.width / board.offsetWidth : 1;
 }
-/** The arrow under a click, found with a wide stroke so thin lines are easy to hit. */
+/**
+ * The arrow nearest to a click, within a few screen pixels. Every candidate is measured, so a click
+ * between two close arrows picks the closer one instead of whichever comes first in the page.
+ */
 function edgeAt(board: HTMLElement, cx: number, cy: number): Edge | null {
   const b = board.getBoundingClientRect();
   const z = zoomOf(board);
+  const tol = 8 / z;
+  let best: { edge: Edge; d: number } | null = null;
   for (const p of board.querySelectorAll<SVGPathElement>("path.edge[data-from]")) {
     const g = p.parentElement as unknown as SVGGElement;
-    const shift = /translate\(([-\d.]+)/.exec(g.getAttribute("transform") ?? "")?.[1];
-    const pt = new DOMPoint((cx - b.left) / z - Number(shift ?? 0), (cy - b.top) / z);
-    const old = p.style.strokeWidth;
-    p.style.strokeWidth = "14";
-    const hit = p.isPointInStroke(pt);
-    p.style.strokeWidth = old;
-    if (hit) return { from: p.dataset.from!, to: p.dataset.to!, kind: p.classList.contains("result") ? "result" : "flow" };
+    const shift = Number(/translate\(([-\d.]+)/.exec(g.getAttribute("transform") ?? "")?.[1] ?? 0);
+    const x = (cx - b.left) / z - shift, y = (cy - b.top) / z;
+    const box = p.getBBox();
+    if (x < box.x - tol || x > box.x + box.width + tol || y < box.y - tol || y > box.y + box.height + tol) continue;
+    const d = distanceToPath(p, x, y);
+    if (d <= tol && (!best || d < best.d)) best = { edge: { from: p.dataset.from!, to: p.dataset.to!, kind: p.classList.contains("result") ? "result" : "flow" }, d };
   }
-  return null;
+  return best?.edge ?? null;
+}
+
+/** Shortest distance from a point to a path: coarse samples, then a finer pass around the best one. */
+export function distanceToPath(p: { getTotalLength(): number; getPointAtLength(l: number): { x: number; y: number } }, x: number, y: number): number {
+  const len = p.getTotalLength();
+  const at = (l: number) => { const q = p.getPointAtLength(Math.max(0, Math.min(len, l))); return Math.hypot(q.x - x, q.y - y); };
+  const step = Math.max(2, len / 200);
+  let bestL = 0, bestD = Infinity;
+  for (let l = 0; l <= len; l += step) { const d = at(l); if (d < bestD) { bestD = d; bestL = l; } }
+  for (let l = bestL - step; l <= bestL + step; l += step / 10) { const d = at(l); if (d < bestD) bestD = d; }
+  return bestD;
 }

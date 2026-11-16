@@ -22,7 +22,7 @@ export const api = {
   history: (slug: string) => get<VersionEntry[]>(`${base(slug)}/history`),
   pageUrl: (slug: string, page: string, version?: number) => `${base(slug)}/pages/${page}${version ? `?version=${version}` : ""}`,
   apply: (slug: string, baseVersion: number, ops: Op[]) => post<ApplyResult>(`${base(slug)}/changes`, { baseVersion, ops }),
-  previewRemove: (slug: string, id: string) => post<Removal>(`${base(slug)}/preview-remove`, { id }),
-  restore: (slug: string, version: number) => post<ApplyResult>(`${base(slug)}/restore`, { version }),
+  previewRemove: (slug: string, id: string) => post<{ version: number; removal: Removal }>(`${base(slug)}/preview-remove`, { id }),
+  restore: (slug: string, version: number, baseVersion: number) => post<ApplyResult>(`${base(slug)}/restore`, { version, baseVersion }),
   writeTarget: (slug: string, checkoutRoot: string) => post<Project>(`${base(slug)}/write-target`, { checkoutRoot }),
 };

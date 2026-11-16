@@ -101,4 +101,15 @@ test("canRebase redoes an edit only when nobody changed the same sticky", () => 
   assert.equal(canRebase([{ op: "addEdge", from: "a", to: "b", kind: "flow" }], m), true);
   assert.equal(canRebase([{ op: "addEdge", from: "a", to: "gone", kind: "flow" }], m), false);
   assert.equal(canRebase([{ op: "removeNode", id: "gone" }], m), false);
+  // A delete was confirmed against a list of what goes with it; never redo it on a newer version.
+  assert.equal(canRebase([{ op: "removeNode", id: "a" }], m), false);
+});
+
+import { distanceToPath } from "../web/board.ts";
+test("distanceToPath measures the closest point of a path", () => {
+  const line = (x1: number, y1: number, x2: number, y2: number) => ({ getTotalLength: () => Math.hypot(x2 - x1, y2 - y1), getPointAtLength: (l: number) => { const t = l / Math.hypot(x2 - x1, y2 - y1); return { x: x1 + (x2 - x1) * t, y: y1 + (y2 - y1) * t }; } });
+  const a = line(0, 0, 100, 0), b = line(0, 6, 100, 6);
+  // A click at y=2 is nearer to a than to b, although both are within an 8px tolerance.
+  assert.ok(distanceToPath(a, 50, 2) < distanceToPath(b, 50, 2));
+  assert.ok(Math.abs(distanceToPath(a, 50, 2) - 2) < 0.1);
 });
