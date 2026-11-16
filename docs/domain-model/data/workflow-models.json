@@ -1,0 +1,254 @@
+{
+  "schema": "workflow-models/v1",
+  "title": "ライフサイクル",
+  "checked": {
+    "revision": "7338f27",
+    "date": "2026-11-16"
+  },
+  "lifecycles": [
+    {
+      "id": "version-life",
+      "name": "モデルの版",
+      "domain": "meeting",
+      "summary": "構造の誤りがある変更と古い版からの書き込みは版にならない（断る）。",
+      "states": [
+        {
+          "id": "clean",
+          "name": "検証済み",
+          "initial": true
+        },
+        {
+          "id": "draft",
+          "name": "書きかけ"
+        }
+      ],
+      "transitions": [
+        {
+          "from": "clean",
+          "on": "agent-apply",
+          "to": "clean",
+          "guard": "検証が全部通る",
+          "effect": "JSONとコミット用HTMLを書く",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "htmlWritten = true",
+              "role": "source"
+            }
+          ]
+        },
+        {
+          "from": "clean",
+          "on": "agent-apply",
+          "to": "draft",
+          "guard": "構造は正しいが決まりの違反がある",
+          "effect": "JSONだけ書き、図に違反を示す",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "if (!warnings.length)",
+              "role": "source"
+            }
+          ]
+        },
+        {
+          "from": "draft",
+          "on": "agent-apply",
+          "to": "clean",
+          "guard": "検証が全部通る",
+          "effect": "JSONとコミット用HTMLを書く",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "htmlWritten = true",
+              "role": "source"
+            }
+          ]
+        },
+        {
+          "from": "draft",
+          "on": "agent-apply",
+          "to": "draft",
+          "guard": "構造は正しいが決まりの違反がある",
+          "effect": "JSONだけ書き、図に違反を示す",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "if (!warnings.length)",
+              "role": "source"
+            }
+          ]
+        },
+        {
+          "from": "clean",
+          "on": "person-edit",
+          "to": "clean",
+          "guard": "検証が全部通る",
+          "effect": "JSONとコミット用HTMLを書く",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "htmlWritten = true",
+              "role": "source"
+            }
+          ]
+        },
+        {
+          "from": "clean",
+          "on": "person-edit",
+          "to": "draft",
+          "guard": "構造は正しいが決まりの違反がある",
+          "effect": "JSONだけ書き、図に違反を示す",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "if (!warnings.length)",
+              "role": "source"
+            }
+          ]
+        },
+        {
+          "from": "draft",
+          "on": "person-edit",
+          "to": "clean",
+          "guard": "検証が全部通る",
+          "effect": "JSONとコミット用HTMLを書く",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "htmlWritten = true",
+              "role": "source"
+            }
+          ]
+        },
+        {
+          "from": "draft",
+          "on": "person-edit",
+          "to": "draft",
+          "guard": "構造は正しいが決まりの違反がある",
+          "effect": "JSONだけ書き、図に違反を示す",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "if (!warnings.length)",
+              "role": "source"
+            }
+          ]
+        },
+        {
+          "from": "clean",
+          "on": "restore",
+          "to": "clean",
+          "guard": "検証が全部通る",
+          "effect": "JSONとコミット用HTMLを書く",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "htmlWritten = true",
+              "role": "source"
+            }
+          ]
+        },
+        {
+          "from": "clean",
+          "on": "restore",
+          "to": "draft",
+          "guard": "構造は正しいが決まりの違反がある",
+          "effect": "JSONだけ書き、図に違反を示す",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "if (!warnings.length)",
+              "role": "source"
+            }
+          ]
+        },
+        {
+          "from": "draft",
+          "on": "restore",
+          "to": "clean",
+          "guard": "検証が全部通る",
+          "effect": "JSONとコミット用HTMLを書く",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "htmlWritten = true",
+              "role": "source"
+            }
+          ]
+        },
+        {
+          "from": "draft",
+          "on": "restore",
+          "to": "draft",
+          "guard": "構造は正しいが決まりの違反がある",
+          "effect": "JSONだけ書き、図に違反を示す",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "if (!warnings.length)",
+              "role": "source"
+            }
+          ]
+        },
+        {
+          "from": "clean",
+          "on": "file-edit",
+          "to": "clean",
+          "guard": "検証が全部通る",
+          "effect": "JSONとコミット用HTMLを書く",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "htmlWritten = true",
+              "role": "source"
+            }
+          ]
+        },
+        {
+          "from": "clean",
+          "on": "file-edit",
+          "to": "draft",
+          "guard": "構造は正しいが決まりの違反がある",
+          "effect": "JSONだけ書き、図に違反を示す",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "if (!warnings.length)",
+              "role": "source"
+            }
+          ]
+        },
+        {
+          "from": "draft",
+          "on": "file-edit",
+          "to": "clean",
+          "guard": "検証が全部通る",
+          "effect": "JSONとコミット用HTMLを書く",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "htmlWritten = true",
+              "role": "source"
+            }
+          ]
+        },
+        {
+          "from": "draft",
+          "on": "file-edit",
+          "to": "draft",
+          "guard": "構造は正しいが決まりの違反がある",
+          "effect": "JSONだけ書き、図に違反を示す",
+          "evidence": [
+            {
+              "path": "src/store/model-store.ts",
+              "symbol": "if (!warnings.length)",
+              "role": "source"
+            }
+          ]
+        }
+      ],
+      "rejections": []
+    }
+  ]
+}

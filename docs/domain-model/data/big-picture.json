@@ -1,0 +1,711 @@
+{
+  "schema": "big-picture/v1",
+  "title": "event-storming-mcp の全体像",
+  "summary": "会議で全員が同じ生きた図を見て、エージェントは MCP で、人は図の上で直し、変更は版として残る。モデルの検証と描画の CLI も持つ。",
+  "checked": {
+    "revision": "7338f27",
+    "date": "2026-11-16"
+  },
+  "product": "event-storming-mcp",
+  "domains": [
+    {
+      "id": "setup",
+      "name": "登録と起動"
+    },
+    {
+      "id": "meeting",
+      "name": "会議でのイベントストーミング"
+    },
+    {
+      "id": "history",
+      "name": "履歴と復元"
+    },
+    {
+      "id": "cli",
+      "name": "モデルの検証と描画"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "reg-actor",
+      "type": "actor",
+      "domain": "setup",
+      "text": "会議の進行役",
+      "evidence": [
+        {
+          "path": "src/commands.ts",
+          "symbol": "const add",
+          "role": "source"
+        }
+      ]
+    },
+    {
+      "id": "reg",
+      "type": "command",
+      "domain": "setup",
+      "text": "モデルフォルダを登録する",
+      "evidence": [
+        {
+          "path": "src/store/registry.ts",
+          "symbol": "async register(",
+          "role": "entry"
+        }
+      ]
+    },
+    {
+      "id": "reg-agg",
+      "type": "aggregate",
+      "domain": "setup",
+      "text": "登録プロジェクト",
+      "invariants": [
+        "リポジトリとモデルフォルダで1つ",
+        "書き込み先は登録済みの作業場所のどれか"
+      ],
+      "evidence": [
+        {
+          "path": "src/store/registry.ts",
+          "symbol": "export type Project",
+          "role": "persistence"
+        }
+      ]
+    },
+    {
+      "id": "reg-done",
+      "type": "event",
+      "domain": "setup",
+      "text": "プロジェクトを登録した",
+      "evidence": [
+        {
+          "path": "src/store/registry.ts",
+          "symbol": "project.json",
+          "role": "persistence"
+        }
+      ]
+    },
+    {
+      "id": "open-actor",
+      "type": "actor",
+      "domain": "setup",
+      "text": "会議の進行役",
+      "evidence": [
+        {
+          "path": "src/commands.ts",
+          "symbol": "openBrowser",
+          "role": "source"
+        }
+      ]
+    },
+    {
+      "id": "open",
+      "type": "command",
+      "domain": "setup",
+      "text": "ボードを開く",
+      "evidence": [
+        {
+          "path": "src/server/daemon.ts",
+          "symbol": "ensureServer",
+          "role": "entry"
+        }
+      ]
+    },
+    {
+      "id": "server",
+      "type": "aggregate",
+      "domain": "setup",
+      "text": "ローカルサーバー",
+      "invariants": [
+        "1台に1つ",
+        "127.0.0.1 だけで待ち受ける"
+      ],
+      "evidence": [
+        {
+          "path": "src/server/daemon.ts",
+          "symbol": "server.json",
+          "role": "persistence"
+        }
+      ]
+    },
+    {
+      "id": "open-done",
+      "type": "event",
+      "domain": "setup",
+      "text": "ボードを映した",
+      "evidence": [
+        {
+          "path": "src/server/http.ts",
+          "symbol": "startServer",
+          "role": "ui"
+        }
+      ]
+    },
+    {
+      "id": "board",
+      "type": "readModel",
+      "domain": "meeting",
+      "text": "生きた全体像と変わった付箋",
+      "evidence": [
+        {
+          "path": "web/board.ts",
+          "symbol": "class Board",
+          "role": "ui"
+        }
+      ]
+    },
+    {
+      "id": "agent",
+      "type": "actor",
+      "domain": "meeting",
+      "text": "会議のエージェント",
+      "evidence": [
+        {
+          "path": "src/mcp/tools.ts",
+          "symbol": "registerTools",
+          "role": "source"
+        }
+      ]
+    },
+    {
+      "id": "agent-apply",
+      "type": "command",
+      "domain": "meeting",
+      "text": "MCPでモデルを直す",
+      "evidence": [
+        {
+          "path": "src/mcp/tools.ts",
+          "symbol": "apply_changes",
+          "role": "entry"
+        }
+      ]
+    },
+    {
+      "id": "version-a",
+      "type": "aggregate",
+      "domain": "meeting",
+      "text": "モデルの版",
+      "invariants": [
+        "古い版からの書き込みは断る",
+        "構造の誤りは保存しない",
+        "検証が全部通った版だけコミット用HTMLを書く"
+      ],
+      "evidence": [
+        {
+          "path": "src/store/model-store.ts",
+          "symbol": "class ModelStore",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "agent-done",
+      "type": "event",
+      "domain": "meeting",
+      "text": "エージェントの変更を記録した",
+      "evidence": [
+        {
+          "path": "src/store/history.ts",
+          "symbol": "async append(",
+          "role": "persistence"
+        }
+      ]
+    },
+    {
+      "id": "person",
+      "type": "actor",
+      "domain": "meeting",
+      "text": "会議の参加者",
+      "evidence": [
+        {
+          "path": "web/board.ts",
+          "symbol": "editText",
+          "role": "ui"
+        }
+      ]
+    },
+    {
+      "id": "person-edit",
+      "type": "command",
+      "domain": "meeting",
+      "text": "図の上で付箋と矢印を直す",
+      "evidence": [
+        {
+          "path": "web/main.ts",
+          "symbol": "async function save",
+          "role": "entry"
+        }
+      ]
+    },
+    {
+      "id": "version-p",
+      "type": "aggregate",
+      "domain": "meeting",
+      "text": "モデルの版",
+      "invariants": [
+        "古い版からの書き込みは断る",
+        "付箋を消すと参照も消し、消す前に一覧で確かめる"
+      ],
+      "evidence": [
+        {
+          "path": "src/store/model-store.ts",
+          "symbol": "apply(slug",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "person-done",
+      "type": "event",
+      "domain": "meeting",
+      "text": "人の手直しを記録した",
+      "evidence": [
+        {
+          "path": "src/store/history.ts",
+          "symbol": "async append(",
+          "role": "persistence"
+        }
+      ]
+    },
+    {
+      "id": "file-actor",
+      "type": "actor",
+      "domain": "meeting",
+      "text": "ファイルを直す人やエージェント",
+      "evidence": [
+        {
+          "path": "src/store/watch.ts",
+          "symbol": "watchProject",
+          "role": "source"
+        }
+      ]
+    },
+    {
+      "id": "file-edit",
+      "type": "command",
+      "domain": "meeting",
+      "text": "データファイルを直接書き換える",
+      "evidence": [
+        {
+          "path": "src/store/watch.ts",
+          "symbol": "watchProject",
+          "role": "entry"
+        }
+      ]
+    },
+    {
+      "id": "version-f",
+      "type": "aggregate",
+      "domain": "meeting",
+      "text": "モデルの版",
+      "invariants": [
+        "読めないファイルは版にしない"
+      ],
+      "evidence": [
+        {
+          "path": "src/store/model-store.ts",
+          "symbol": "ingest(slug",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "file-done",
+      "type": "event",
+      "domain": "meeting",
+      "text": "ファイルの変更を記録した",
+      "evidence": [
+        {
+          "path": "src/store/model-store.ts",
+          "symbol": "ファイルが変わった",
+          "role": "persistence"
+        }
+      ]
+    },
+    {
+      "id": "pending",
+      "type": "hotspot",
+      "domain": "meeting",
+      "text": "入力中に届いた変更は待たせ、編集を終えたら反映する。保存前に別の変更が入っても同じ付箋でなければ保存し直す。",
+      "attach": {
+        "to": "person-edit",
+        "pos": "below"
+      },
+      "evidence": [
+        {
+          "path": "web/edit-state.ts",
+          "symbol": "canRebase",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "draft",
+      "type": "hotspot",
+      "domain": "meeting",
+      "text": "決まりに違反した書きかけの版は保存して図に赤く示すが、コミット用HTMLは検証が通るまで書かない。会議の後に直し切る手順は未定。",
+      "attach": {
+        "to": "agent-apply",
+        "pos": "below"
+      },
+      "evidence": [
+        {
+          "path": "src/store/model-store.ts",
+          "symbol": "htmlWritten",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "transcript",
+      "type": "hotspot",
+      "domain": "meeting",
+      "text": "会議の会話をエージェントに届ける仕組みは別の MCP（文字起こし）で作る。",
+      "attach": {
+        "to": "agent",
+        "pos": "below"
+      },
+      "evidence": [
+        {
+          "path": "README.md",
+          "symbol": "MCP",
+          "role": "source"
+        }
+      ]
+    },
+    {
+      "id": "hist",
+      "type": "readModel",
+      "domain": "history",
+      "text": "変更履歴と前後の図",
+      "evidence": [
+        {
+          "path": "web/history.ts",
+          "symbol": "showHistory",
+          "role": "ui"
+        }
+      ]
+    },
+    {
+      "id": "restore-actor",
+      "type": "actor",
+      "domain": "history",
+      "text": "会議の進行役",
+      "evidence": [
+        {
+          "path": "web/history.ts",
+          "symbol": "data-restore",
+          "role": "ui"
+        }
+      ]
+    },
+    {
+      "id": "restore",
+      "type": "command",
+      "domain": "history",
+      "text": "前の版に戻す",
+      "evidence": [
+        {
+          "path": "src/mcp/tools.ts",
+          "symbol": "restore_version",
+          "role": "entry"
+        }
+      ]
+    },
+    {
+      "id": "version-r",
+      "type": "aggregate",
+      "domain": "history",
+      "text": "モデルの版",
+      "invariants": [
+        "戻すことも新しい版として記録する"
+      ],
+      "evidence": [
+        {
+          "path": "src/store/model-store.ts",
+          "symbol": "restore(slug",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "restore-done",
+      "type": "event",
+      "domain": "history",
+      "text": "版を戻した",
+      "evidence": [
+        {
+          "path": "src/store/model-store.ts",
+          "symbol": "に戻した",
+          "role": "persistence"
+        }
+      ]
+    },
+    {
+      "id": "cli-actor",
+      "type": "actor",
+      "domain": "cli",
+      "text": "計画と実装の担当",
+      "evidence": [
+        {
+          "path": "model/domain-model.mjs",
+          "symbol": "export async function run",
+          "role": "source"
+        }
+      ]
+    },
+    {
+      "id": "render",
+      "type": "command",
+      "domain": "cli",
+      "text": "データを検証してHTMLへ描画する",
+      "evidence": [
+        {
+          "path": "model/domain-model.mjs",
+          "symbol": "cmd === 'render'",
+          "role": "entry"
+        }
+      ]
+    },
+    {
+      "id": "pages",
+      "type": "aggregate",
+      "domain": "cli",
+      "text": "モデルのページ",
+      "invariants": [
+        "データに問題があれば書き出さない"
+      ],
+      "evidence": [
+        {
+          "path": "model/lib/render.mjs",
+          "symbol": "export async function renderModel",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "render-done",
+      "type": "event",
+      "domain": "cli",
+      "text": "モデルのHTMLを生成した",
+      "evidence": [
+        {
+          "path": "model/domain-model.mjs",
+          "symbol": "HTML を",
+          "role": "source"
+        }
+      ]
+    },
+    {
+      "id": "check",
+      "type": "command",
+      "domain": "cli",
+      "text": "HTMLと根拠を照合する",
+      "evidence": [
+        {
+          "path": "model/domain-model.mjs",
+          "symbol": "export function checkEvidence",
+          "role": "entry"
+        }
+      ]
+    },
+    {
+      "id": "check-agg",
+      "type": "aggregate",
+      "domain": "cli",
+      "text": "モデルの照合結果",
+      "invariants": [
+        "HTML一致と根拠パス・名前を確認する"
+      ],
+      "evidence": [
+        {
+          "path": "model/domain-model.mjs",
+          "symbol": "export function checkEvidence",
+          "role": "rule"
+        }
+      ]
+    },
+    {
+      "id": "check-done",
+      "type": "event",
+      "domain": "cli",
+      "text": "モデルの整合性を確認した",
+      "evidence": [
+        {
+          "path": "model/domain-model.mjs",
+          "symbol": "証拠のパスと名前はすべてあります",
+          "role": "source"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "reg-actor",
+      "to": "reg",
+      "kind": "flow"
+    },
+    {
+      "from": "reg",
+      "to": "reg-agg",
+      "kind": "flow"
+    },
+    {
+      "from": "reg-agg",
+      "to": "reg-done",
+      "kind": "flow"
+    },
+    {
+      "from": "open-actor",
+      "to": "open",
+      "kind": "flow"
+    },
+    {
+      "from": "open",
+      "to": "server",
+      "kind": "flow"
+    },
+    {
+      "from": "server",
+      "to": "open-done",
+      "kind": "flow"
+    },
+    {
+      "from": "board",
+      "to": "person",
+      "kind": "flow"
+    },
+    {
+      "from": "agent",
+      "to": "agent-apply",
+      "kind": "flow"
+    },
+    {
+      "from": "agent-apply",
+      "to": "version-a",
+      "kind": "flow"
+    },
+    {
+      "from": "version-a",
+      "to": "agent-done",
+      "kind": "flow"
+    },
+    {
+      "from": "person",
+      "to": "person-edit",
+      "kind": "flow"
+    },
+    {
+      "from": "person-edit",
+      "to": "version-p",
+      "kind": "flow"
+    },
+    {
+      "from": "version-p",
+      "to": "person-done",
+      "kind": "flow"
+    },
+    {
+      "from": "file-actor",
+      "to": "file-edit",
+      "kind": "flow"
+    },
+    {
+      "from": "file-edit",
+      "to": "version-f",
+      "kind": "flow"
+    },
+    {
+      "from": "version-f",
+      "to": "file-done",
+      "kind": "flow"
+    },
+    {
+      "from": "hist",
+      "to": "restore-actor",
+      "kind": "flow"
+    },
+    {
+      "from": "restore-actor",
+      "to": "restore",
+      "kind": "flow"
+    },
+    {
+      "from": "restore",
+      "to": "version-r",
+      "kind": "flow"
+    },
+    {
+      "from": "version-r",
+      "to": "restore-done",
+      "kind": "flow"
+    },
+    {
+      "from": "cli-actor",
+      "to": "render",
+      "kind": "flow"
+    },
+    {
+      "from": "render",
+      "to": "pages",
+      "kind": "flow"
+    },
+    {
+      "from": "pages",
+      "to": "render-done",
+      "kind": "flow"
+    },
+    {
+      "from": "render-done",
+      "to": "check",
+      "kind": "flow"
+    },
+    {
+      "from": "check",
+      "to": "check-agg",
+      "kind": "flow"
+    },
+    {
+      "from": "check-agg",
+      "to": "check-done",
+      "kind": "flow"
+    },
+    {
+      "from": "open-done",
+      "to": "board",
+      "kind": "result"
+    },
+    {
+      "from": "agent-done",
+      "to": "board",
+      "kind": "result"
+    },
+    {
+      "from": "person-done",
+      "to": "board",
+      "kind": "result"
+    },
+    {
+      "from": "file-done",
+      "to": "board",
+      "kind": "result"
+    },
+    {
+      "from": "restore-done",
+      "to": "board",
+      "kind": "result"
+    },
+    {
+      "from": "agent-done",
+      "to": "hist",
+      "kind": "result"
+    },
+    {
+      "from": "person-done",
+      "to": "hist",
+      "kind": "result"
+    },
+    {
+      "from": "file-done",
+      "to": "hist",
+      "kind": "result"
+    }
+  ]
+}
