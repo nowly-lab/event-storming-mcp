@@ -1,5 +1,6 @@
 // Renders the domain model pages. Output depends only on the data, so `check` can compare it.
 import { layoutBoard, layoutGraph } from './layout.mjs';
+import { canStartPan, panStep, PAN_THRESHOLD } from './pan.mjs';
 
 const TYPE = {
   actor: { ja: 'アクター', en: 'Actor', hint: '人・役割' },
@@ -94,16 +95,18 @@ ul.plain { margin: 0; padding-left: 18px; }
 
 // ---- pinch zoom ----------------------------------------------------------------
 // Large diagrams sit in a zoom box: pinch (trackpad, touch, Safari gestures), Ctrl/⌘ + wheel,
-// the +/− buttons or the + − 0 keys zoom around the pointer; scrolling pans as usual.
+// the +/− buttons or the + − 0 keys zoom around the pointer; scrolling or dragging empty canvas pans.
 // CSS zoom (not transform) keeps text sharp and lets the scroll area follow the zoomed size.
 const zoomBox = (inner, { cls = '', fit = 'none' } = {}) => `<div class="zoomable" data-fit="${fit}">
 <div class="zoom-ctrl" role="toolbar" aria-label="拡大縮小"><button type="button" data-z="out" aria-label="縮小">−</button><output aria-live="polite">100%</output><button type="button" data-z="in" aria-label="拡大">＋</button><button type="button" data-z="fit">全体</button><button type="button" data-z="one">等倍</button></div>
-<div class="zoom-view ${cls}" tabindex="0" aria-label="ピンチまたは Ctrl/⌘ + ホイールで拡大縮小"><div class="zoom-content">${inner}</div></div>
+<div class="zoom-view ${cls}" tabindex="0" aria-label="ピンチまたは Ctrl/⌘ + ホイールで拡大縮小、ドラッグで移動"><div class="zoom-content">${inner}</div></div>
 </div>`;
 
 const ZOOM_CSS = `
 .zoomable { position: relative; min-width: 0; }
 .zoom-view { overflow: auto; overscroll-behavior: contain; touch-action: pan-x pan-y; max-height: 80vh; }
+.zoom-view { cursor: grab; }
+.zoom-view.panning, .zoom-view.panning * { cursor: grabbing !important; user-select: none; }
 .zoom-view:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .zoom-content { width: max-content; }
 .zoom-ctrl { position: absolute; top: 8px; right: 8px; z-index: 25; display: flex; align-items: center; gap: 2px; padding: 3px;
@@ -114,7 +117,9 @@ const ZOOM_CSS = `
 .zoom-ctrl output { min-width: 3.4em; text-align: center; font: 12px var(--f-mono); color: var(--ink-soft); }`;
 
 const ZOOM_JS = `(function(){
-var MIN = 0.1, MAX = 4;
+var MIN = 0.1, MAX = 4, PAN_THRESHOLD = ${PAN_THRESHOLD};
+${canStartPan.toString()}
+${panStep.toString()}
 document.querySelectorAll('.zoomable').forEach(function (box) {
   var view = box.querySelector('.zoom-view'), content = box.querySelector('.zoom-content'), out = box.querySelector('output');
   var s = 1, w = content.offsetWidth, h = content.offsetHeight;
@@ -170,6 +175,44 @@ document.querySelectorAll('.zoomable').forEach(function (box) {
   }, { passive: false });
   view.addEventListener('touchend', function (e) { if (e.touches.length < 2) { t = null; touching = false; } });
   view.addEventListener('touchcancel', function () { t = null; touching = false; });
+  // Mouse or pen drag on empty canvas pans. Moves are followed on the whole page (the pointer may leave the
+  // box before it travels far enough), and pointer capture starts only once the press has moved, so a
+  // plain click still reaches what is under it; the click that ends a pan is dropped.
+  var p = null;
+  function movePan(e) {
+    if (!p || e.pointerId !== p.id) return;
+    var n = panStep(p.start, e.clientX, e.clientY, p.moving, PAN_THRESHOLD);
+    if (n.moving && !p.moving) {
+      p.moving = true; view.classList.add('panning'); view.setPointerCapture(e.pointerId);
+      var sel = document.getSelection(); if (sel) sel.removeAllRanges();
+    }
+    if (p.moving) { view.scrollLeft = n.left; view.scrollTop = n.top; }
+  }
+  function endPan(e) {
+    if (!p || e.pointerId !== p.id) return;
+    document.removeEventListener('pointermove', movePan);
+    document.removeEventListener('pointerup', endPan);
+    document.removeEventListener('pointercancel', endPan);
+    if (p.moving) {
+      view.classList.remove('panning');
+      if (view.hasPointerCapture(e.pointerId)) view.releasePointerCapture(e.pointerId);
+      // A release outside the page fires no click, so the next press drops the guard instead.
+      var drop = function () { document.removeEventListener('click', swallow, true); document.removeEventListener('pointerdown', drop, true); };
+      var swallow = function (c) { c.stopPropagation(); c.preventDefault(); drop(); };
+      document.addEventListener('click', swallow, true);
+      document.addEventListener('pointerdown', drop, true);
+    }
+    p = null;
+  }
+  view.addEventListener('pointerdown', function (e) {
+    if (p || !canStartPan(e)) return;
+    p = { id: e.pointerId, moving: false, start: { x: e.clientX, y: e.clientY, left: view.scrollLeft, top: view.scrollTop } };
+    document.addEventListener('pointermove', movePan);
+    document.addEventListener('pointerup', endPan);
+    document.addEventListener('pointercancel', endPan);
+  });
+  // No text selection while a press on the canvas may become a pan.
+  view.addEventListener('selectstart', function (e) { if (p) e.preventDefault(); });
   // Start: fit the width (never above 100%) for wide boards; otherwise 100%.
   var fit = box.dataset.fit;
   set(fit === 'width' ? Math.min(1, view.clientWidth / w) : fit === 'all' ? Math.min(1, fitAll()) : 1);

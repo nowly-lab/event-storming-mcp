@@ -4,6 +4,7 @@ A live EventStorming board for [scrum-domain-modeling](docs/data-format.md) doma
 
 - **One local server** shows each registered model as a live board. Every open page redraws within a second when the model changes, so a meeting can watch one diagram on a shared screen while an agent edits it.
 - **An MCP server** lets agents read, search and edit the model with validation, see the history and restore a version.
+- **Drag to pan**: drag empty canvas with the mouse to move the big picture, state diagrams and context map, on the board and in the generated pages; pinch or Ctrl/⌘ + wheel zooms.
 - **Inline editing** on the big picture: double-click a sticky to change its text, add and delete stickies, drag from a sticky's handle to draw an arrow, select an arrow and press Delete.
 - **History** of every change (person, agent or file), with the board before and after side by side and a restore button.
 - **The model CLI** (`init`, `validate`, `render`, `check`) that renders the committed HTML pages.

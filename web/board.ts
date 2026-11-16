@@ -270,6 +270,7 @@ export class Board {
     const r = rectOf(note);
     const tools = doc.createElement("div");
     tools.className = "esm-tools";
+    tools.dataset.noPan = "";
     tools.style.left = `${r.x}px`;
     tools.style.top = `${r.y - 6}px`;
     tools.innerHTML = '<button type="button" data-a="text">文字を直す</button><button type="button" data-a="connect">矢印をつなぐ</button><button type="button" data-a="remove">削除</button>';
@@ -286,6 +287,7 @@ export class Board {
     board.appendChild(tools);
     const handle = doc.createElement("div");
     handle.className = "esm-handle";
+    handle.dataset.noPan = "";
     handle.title = "引っぱって矢印をつなぐ";
     handle.style.left = `${r.x + r.w}px`;
     handle.style.top = `${r.y + r.h / 2}px`;
