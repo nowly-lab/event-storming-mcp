@@ -159,3 +159,26 @@ test("model edits on disk reach the page through the watcher", async () => {
     await s.done();
   }
 });
+
+test("session-diff lists what changed since a version, and refuses bad versions", async () => {
+  const s = await setup();
+  try {
+    const base = `${s.server.url}/api/projects/${s.slug}/session-diff`;
+    const m = await (await fetch(`${s.server.url}/api/projects/${s.slug}/model`)).json();
+    const id = m.data["big-picture"].nodes[0].id;
+    const nonce = await nonceOf(s.server.url);
+    await call(`${s.server.url}/api/projects/${s.slug}/changes`, { method: "POST", body: { nonce, baseVersion: m.version, ops: [{ op: "updateNode", id, patch: { text: "会議で直した" } }] } });
+    const r = await call(`${base}?from=${m.version}`);
+    assert.equal(r.status, 200);
+    const d = JSON.parse(r.body);
+    assert.equal(d.from, m.version);
+    assert.equal(d.to, m.version + 1);
+    assert.deepEqual(d.changes.map((c: { id: string; kind: string; authors: unknown[] }) => [c.id, c.kind, c.authors]), [[id, "updated", [{ kind: "person" }]]]);
+    assert.equal((await call(`${base}?from=${m.version + 1}`)).status, 200);
+    assert.equal((await call(base)).status, 400);
+    assert.equal((await call(`${base}?from=abc`)).status, 400);
+    assert.equal((await call(`${base}?from=${m.version + 5}`)).status, 400);
+  } finally {
+    await s.done();
+  }
+});
