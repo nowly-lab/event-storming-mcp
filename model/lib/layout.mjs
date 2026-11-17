@@ -221,7 +221,7 @@ function edgePaths(edges, rect) {
 }
 
 // ---- timeline lanes ------------------------------------------------------------
-const LANE_LABEL_W = 170, LANE_PAD = 28, COL_PAD = 36, LANE_TOP = 150;
+const LANE_LABEL_MIN = 170, LANE_PAD = 28, COL_PAD = 36, LANE_TOP = 150;
 
 /**
  * The column of every sticky in the flow: its own phase; otherwise the phase of the next event along the flow
@@ -231,16 +231,20 @@ export function phaseColumns(bp) {
   const known = new Set((bp.phases || []).map((p) => p.id));
   const byId = new Map(bp.nodes.map((n) => [n.id, n]));
   const out = new Map(), inc = new Map();
+  // Flow edges only: a result edge (event ⇢ read model) is not "what happens next".
   for (const e of bp.edges) {
+    if (e.kind !== 'flow') continue;
     (out.get(e.from) || out.set(e.from, []).get(e.from)).push(e.to);
     (inc.get(e.to) || inc.set(e.to, []).get(e.to)).push(e.from);
   }
   const own = (n) => (n && !n.attach && known.has(n.phase) ? n.phase : null);
+  // Inference looks for events only: a phased command on the way does not decide where its policy goes.
+  const eventPhase = (n) => (n && n.type === 'event' ? own(n) : null);
   const search = (start, next) => {
     const seen = new Set([start]);
     let level = next.get(start) || [];
     while (level.length) {
-      const found = level.map((id) => own(byId.get(id))).find(Boolean);
+      const found = level.map((id) => eventPhase(byId.get(id))).find(Boolean);
       if (found) return found;
       const nextLevel = [];
       for (const id of level) if (!seen.has(id)) { seen.add(id); nextLevel.push(...(next.get(id) || [])); }
@@ -279,8 +283,10 @@ async function layoutLanes(bp, { byId, attached, size, box, flowEdges }) {
   }
   const colW = cols.map((c) => Math.max(160, ...lanes.map((l) => cell.get(`${l.id}|${c.id}`)?.width ?? 0)) + 2 * COL_PAD);
   const laneH = lanes.map((l) => Math.max(120, ...cols.map((c) => cell.get(`${l.id}|${c.id}`)?.height ?? 0)) + 2 * LANE_PAD);
+  // The label gutter fits the longest lane name (label at x=28, 16 px bold, a 16 px margin).
+  const labelW = Math.max(LANE_LABEL_MIN, ...lanes.map((l) => Math.ceil(28 + textWidth(l.name, 16) * 1.08 + 16)));
   const colX = [], laneY = [];
-  cols.forEach((_, i) => colX.push(i === 0 ? LANE_LABEL_W : colX[i - 1] + colW[i - 1]));
+  cols.forEach((_, i) => colX.push(i === 0 ? labelW : colX[i - 1] + colW[i - 1]));
   lanes.forEach((_, i) => laneY.push(i === 0 ? LANE_TOP : laneY[i - 1] + laneH[i - 1]));
 
   const rect = new Map(), stickies = [];
@@ -304,10 +310,12 @@ async function layoutLanes(bp, { byId, attached, size, box, flowEdges }) {
       }
     }
   }));
-  const width = colX.at(-1) + colW.at(-1) + 32, height = laneY.at(-1) + laneH.at(-1) + 32;
+  // No sticky yet (phases set first, or every sticky removed): an empty band under the headings.
+  const width = colX.at(-1) + colW.at(-1) + 32, height = lanes.length ? laneY.at(-1) + laneH.at(-1) + 32 : LANE_TOP + 120;
   return {
     stickies: stickies.map((s) => ({ ...s, r: { x: r1(s.r.x), y: r1(s.r.y), w: s.r.w, h: s.r.h } })),
     rings: [],
+    top: LANE_TOP,
     lanes: lanes.map((l, i) => ({ domain: l.id, x: 16, w: width - 32, y: r1(laneY[i]), h: r1(laneH[i]) })),
     phases: cols.map((c, i) => ({ id: c.id, name: c.name, x: r1(colX[i]), w: r1(colW[i]) })),
     edges: edgePaths(bp.edges, rect).map((e) => ({ ...e, shift: 0 })),

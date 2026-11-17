@@ -278,7 +278,7 @@ async function bigPicture(m, product) {
   if (L.lanes) {
     // Only boards with phases carry these rules, so pages of models without phases stay byte for byte the same.
     svg += `<style>${LANE_CSS}</style>`;
-    const top = L.lanes[0]?.y ?? 0, bottom = L.height - 16;
+    const top = L.top, bottom = L.height - 16;
     L.lanes.forEach((l, i) => {
       svg += `<rect class="lane${i % 2 ? ' alt' : ''}" x="${l.x}" y="${l.y}" width="${l.w}" height="${l.h}"/><text class="lane-label" x="28" y="${l.y + l.h / 2}" dominant-baseline="middle">${esc(domainName.get(l.domain) || l.domain)}</text>`;
     });

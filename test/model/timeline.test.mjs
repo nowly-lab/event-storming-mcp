@@ -101,3 +101,32 @@ test('the page draws lane names and phase headings', async () => {
   assert.match(html, /class="phase-head"[^>]*>店で調べる/);
   assert.doesNotMatch(html, /<ellipse class="ring"/);
 });
+
+test('I1: inference follows flow edges to the next event, not to a phased command on the way', async () => {
+  const m = timeline();
+  node(m, 'fetch').phase = 'books';
+  const { phaseColumns } = await import('../../model/lib/layout.mjs');
+  const col = phaseColumns(m['big-picture']);
+  assert.equal(col.get('fetch'), 'books', 'an explicit phase controls the sticky itself');
+  assert.equal(col.get('lookup'), 'store', 'the policy takes its next event (priced), not the command between');
+  assert.equal(col.get('quote'), 'decide', 'a read model follows its flow to the next event, not its result edge back');
+});
+
+test('I2: a board with phases but no stickies has finite size and visible headings', async () => {
+  const m = timeline();
+  m['big-picture'].nodes = [];
+  m['big-picture'].edges = [];
+  const L = await layoutBoard(m['big-picture']);
+  assert.ok(Number.isFinite(L.width) && Number.isFinite(L.height) && L.height > 0);
+  assert.ok(L.top > 40);
+  const html = (await renderModel({ ...m, 'domain-glossary': { ...m['domain-glossary'], terms: [] }, 'workflow-models': { ...m['workflow-models'], lifecycles: [] } }, { product: 'T' }))['big-picture.html'];
+  assert.doesNotMatch(html, /NaN/);
+});
+
+test('M1: the lane-label gutter is as wide as the longest domain name', async () => {
+  const m = timeline();
+  m['big-picture'].domains[0].name = '保持coreの課金（Gacher未接続）とても長いドメイン名';
+  const L = await layoutBoard(m['big-picture']);
+  const { textWidth } = await import('../../model/lib/layout.mjs');
+  assert.ok(L.phases[0].x >= 28 + textWidth(m['big-picture'].domains[0].name, 16) + 12, `first column at ${L.phases[0].x}`);
+});
