@@ -1,3 +1,11 @@
+> [!IMPORTANT]
+> **Moved to [nowly-lab/mcp](https://github.com/nowly-lab/mcp/tree/main/packages/event-storming-mcp)** (2026-11-17), with its full history. This repository is archived and no longer updated.
+>
+> ```sh
+> npx -y -p github:nowly-lab/mcp event-storming-mcp …
+> ```
+
+
 # event-storming-mcp
 
 A live EventStorming board for [scrum-domain-modeling](docs/data-format.md) domain models.
