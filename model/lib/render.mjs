@@ -263,6 +263,8 @@ const isChanged = (on) => (on ? ' is-changed' : '');
 const changesBar = (items, what) => (items.length ? `<section class="card changes"><h2>今回の計画で変わる${what}（${items.length}）</h2><div class="list">${items.map((x) => `<a class="item" href="#${esc(x.id)}">${esc(x.label)}</a>`).join('')}</div><label class="toggle"><input type="checkbox" id="show-changed" checked> 光らせて示す</label></section>` : '');
 const legend = () => `<div class="legend">${TYPE_ORDER.map((t) => `<span><i style="background:var(--s-${t})"></i>${TYPE[t].ja}<small>${TYPE[t].hint}</small></span>`).join('')}</div>`;
 
+const LANE_CSS = `.lane { fill: var(--paper); fill-opacity: .55; stroke: var(--line); } .lane.alt { fill: var(--row); fill-opacity: .7; } .lane-label { font: 700 16px var(--f-ui); fill: var(--ink); } .phase-sep { stroke: var(--ring); stroke-width: 1.2; stroke-dasharray: 6 6; } .phase-head { font: 700 18px var(--f-ui); fill: var(--ink); } .phase-head.none { fill: var(--ink-soft); font-weight: 500; }`;
+
 // ---- big picture -------------------------------------------------------------
 async function bigPicture(m, product) {
   const bp = m['big-picture'];
@@ -272,6 +274,18 @@ async function bigPicture(m, product) {
   const changedCount = bp.nodes.filter((n) => n.changed).length;
   let svg = `<svg class="layer" width="${L.width}" height="${L.height}" aria-hidden="true"><defs><marker id="head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1L10 5L0 9z" class="headfill"/></marker></defs>`;
   svg += `<text class="timeline" x="40" y="44">時間の流れ</text><path class="edge" d="M40 60 H200" marker-end="url(#head)" style="stroke-width:3"/>`;
+  // Timeline phases: domains as horizontal lanes, phases as columns from left to right.
+  if (L.lanes) {
+    // Only boards with phases carry these rules, so pages of models without phases stay byte for byte the same.
+    svg += `<style>${LANE_CSS}</style>`;
+    const top = L.lanes[0]?.y ?? 0, bottom = L.height - 16;
+    L.lanes.forEach((l, i) => {
+      svg += `<rect class="lane${i % 2 ? ' alt' : ''}" x="${l.x}" y="${l.y}" width="${l.w}" height="${l.h}"/><text class="lane-label" x="28" y="${l.y + l.h / 2}" dominant-baseline="middle">${esc(domainName.get(l.domain) || l.domain)}</text>`;
+    });
+    for (const c of L.phases) {
+      svg += `<path class="phase-sep" d="M${c.x} ${top - 56} V${bottom}"/><text class="phase-head${c.id === null ? ' none' : ''}" x="${c.x + c.w / 2}" y="${top - 22}" text-anchor="middle">${esc(c.name)}</text>`;
+    }
+  }
   for (const g of L.rings) {
     svg += `<ellipse class="ring" cx="${g.cx}" cy="${g.cy}" rx="${g.rx}" ry="${g.ry}"/><text class="ring-label" x="${g.cx}" y="${g.top + 38}" text-anchor="middle">${esc(domainName.get(g.domain) || g.domain)}</text>`;
   }
