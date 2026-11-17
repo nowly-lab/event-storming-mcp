@@ -57,6 +57,7 @@ export class Board {
     this.frame = document.createElement("iframe");
     this.frame.title = "ドメインモデル";
     stage.replaceChildren(this.frame);
+    window.addEventListener("resize", () => this.fitView());
   }
 
   get doc(): Document | null {
@@ -179,6 +180,21 @@ export class Board {
     return this.selected;
   }
 
+  /**
+   * Makes the big picture's zoom box as tall as the frame, so no part of the board is cut off below it. On load the
+   * frame scrolls to the board; turning the wheel up at the board's top edge scrolls back to the title and legend.
+   */
+  private fitView(scrollToBoard = false): void {
+    const doc = this.doc;
+    const view = this.page === "big-picture.html" ? doc?.querySelector<HTMLElement>(".zoom-view") : null;
+    if (!doc?.scrollingElement || !view) return;
+    // The page's breadcrumb bar stays on top while the page scrolls; the board sits below it.
+    const bar = doc.querySelector<HTMLElement>(".top")?.offsetHeight ?? 0;
+    view.style.maxHeight = "none";
+    view.style.height = `${Math.max(320, this.frame.clientHeight - bar - 32)}px`;
+    if (scrollToBoard) doc.scrollingElement.scrollTop = view.getBoundingClientRect().top + doc.scrollingElement.scrollTop - bar - 16;
+  }
+
   private setup(): void {
     const doc = this.doc;
     if (!doc) return;
@@ -193,6 +209,7 @@ export class Board {
       }
     });
     if (this.page !== "big-picture.html" || !doc.getElementById("board")) return;
+    this.fitView(true);
     const style = doc.createElement("style");
     style.textContent = EDIT_CSS;
     doc.head.appendChild(style);
