@@ -301,7 +301,7 @@ async function bigPicture(m, product) {
   ${zoomBox(`<div class="board" id="board" style="width:${L.width}px;height:${L.height}px">${svg}${notes}</div>`, { cls: 'wall', fit: 'width' })}
   <aside class="panel card" id="panel" aria-live="polite"><h2>付箋の詳細</h2><p class="foot">付箋を選ぶと、種類・ドメイン・つながり・コードの場所が出ます。</p></aside>
 </div>
-<p class="foot">ピンチ（または Ctrl/⌘ + ホイール、右上のボタン）で拡大縮小できます。実線は流れ、点線はイベントがリードモデルに反映されることを表します。重ねて貼った付箋は、その下の付箋に付く外部システム・懸念などです。</p>
+<p class="foot">ピンチ（または Ctrl/⌘ + ホイール、右上のボタン）で拡大縮小できます。実線は流れ、点線はイベントがリードモデルに反映されることを表します。付箋のすぐ隣に貼った付箋は、その付箋に付く外部システム・懸念などです。</p>
 <script type="application/json" id="nodes">${jsonForScript(panelData)}</script>`;
 
   const extraCss = `

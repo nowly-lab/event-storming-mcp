@@ -470,15 +470,22 @@
       "domain": "cli",
       "text": "モデルのページ",
       "invariants": [
-        "データに問題があれば書き出さない"
+        "データに問題があれば書き出さない",
+        "全体像の付箋どうしは重ならない。貼った付箋は親の隣に間を空けて置き、同じ場所の付箋は外へ積む。付箋はドメインの楕円に収まる"
       ],
       "evidence": [
         {
           "path": "model/lib/render.mjs",
           "symbol": "export async function renderModel",
           "role": "rule"
+        },
+        {
+          "path": "model/lib/layout.mjs",
+          "symbol": "attachOffsets",
+          "role": "rule"
         }
-      ]
+      ],
+      "changed": true
     },
     {
       "id": "render-done",
@@ -534,6 +541,90 @@
           "role": "source"
         }
       ]
+    },
+    {
+      "id": "session-diff",
+      "type": "readModel",
+      "domain": "meeting",
+      "text": "このセッションの変更（比べる基準の版から今までの追加・変更・削除と、誰が変えたか）",
+      "note": "全体像の付箋に「追加」「変更」の枠と札、追加した矢印を太い緑で示し、右の一覧から付箋へ移動できる。消した付箋は一覧に取り消し線で出す。",
+      "evidence": [
+        {
+          "path": "src/model/session-diff.ts",
+          "symbol": "sessionDiff",
+          "role": "rule"
+        },
+        {
+          "path": "web/session.ts",
+          "symbol": "renderChanges",
+          "role": "ui"
+        },
+        {
+          "path": "src/server/http.ts",
+          "symbol": "session-diff",
+          "role": "entry"
+        }
+      ],
+      "changed": true
+    },
+    {
+      "id": "base-actor",
+      "type": "actor",
+      "domain": "meeting",
+      "text": "会議の参加者",
+      "changed": true
+    },
+    {
+      "id": "base-set",
+      "type": "command",
+      "domain": "meeting",
+      "text": "比べる基準の版を決める",
+      "note": "タブでボードを開いた時点の版が既定。「ここから比べ直す」で今の版に、履歴の「この版から比べる」で選んだ版にする。",
+      "evidence": [
+        {
+          "path": "web/session.ts",
+          "symbol": "setBase",
+          "role": "ui"
+        }
+      ],
+      "changed": true
+    },
+    {
+      "id": "base-agg",
+      "type": "aggregate",
+      "domain": "meeting",
+      "text": "比べる基準",
+      "invariants": [
+        "タブごとに1つ。再読み込みしても保つ（sessionStorage）",
+        "既定はそのタブで初めてボードを開いた時点の版",
+        "今の版より新しい版は選べない"
+      ],
+      "evidence": [
+        {
+          "path": "web/session.ts",
+          "symbol": "baseFor",
+          "role": "rule"
+        }
+      ],
+      "changed": true
+    },
+    {
+      "id": "base-done",
+      "type": "event",
+      "domain": "meeting",
+      "text": "比べる基準を決めた",
+      "changed": true
+    },
+    {
+      "id": "timeline-order",
+      "type": "hotspot",
+      "domain": "cli",
+      "text": "イベントを左から右の時系列に並べるためのデータ（時系列の区切り）と、その見せ方（ドメインを横の帯にするか、楕円のままか）は決めているところ",
+      "attach": {
+        "to": "render",
+        "pos": "below"
+      },
+      "changed": true
     }
   ],
   "edges": [
@@ -705,6 +796,51 @@
     {
       "from": "file-done",
       "to": "hist",
+      "kind": "result"
+    },
+    {
+      "from": "base-actor",
+      "to": "base-set",
+      "kind": "flow"
+    },
+    {
+      "from": "base-set",
+      "to": "base-agg",
+      "kind": "flow"
+    },
+    {
+      "from": "base-agg",
+      "to": "base-done",
+      "kind": "flow"
+    },
+    {
+      "from": "base-done",
+      "to": "session-diff",
+      "kind": "result"
+    },
+    {
+      "from": "session-diff",
+      "to": "person",
+      "kind": "flow"
+    },
+    {
+      "from": "agent-done",
+      "to": "session-diff",
+      "kind": "result"
+    },
+    {
+      "from": "person-done",
+      "to": "session-diff",
+      "kind": "result"
+    },
+    {
+      "from": "file-done",
+      "to": "session-diff",
+      "kind": "result"
+    },
+    {
+      "from": "restore-done",
+      "to": "session-diff",
       "kind": "result"
     }
   ]

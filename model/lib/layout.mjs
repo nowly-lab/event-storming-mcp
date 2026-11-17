@@ -18,12 +18,25 @@ export function textWidth(text, size) {
 export const STICKY_W = 112;
 const STICKY_MIN_H = 96;
 const ACTOR = [78, 54];
-// Attachments overlap only the edge of their host, so both texts stay readable.
-const ATTACH = {
-  'above': [0.12, -0.84], 'below': [0.16, 0.86],
-  'above-right': [0.62, -0.8], 'below-right': [0.62, 0.84],
-  'above-left': [-0.58, -0.8], 'below-left': [-0.54, 0.84],
-};
+// Attachments sit next to their host with a gap, never on it. Each position is a cell around the host;
+// several attachments in one cell stack away from the host.
+const GAP = 10;
+const COL = { 'above': 0, 'below': 0, 'above-right': 1, 'below-right': 1, 'above-left': -1, 'below-left': -1 };
+/** Offsets of each attachment relative to its host's top-left corner. */
+export function attachOffsets(hostSize, list, size) {
+  const out = new Map();
+  const cursor = new Map();
+  for (const a of list) {
+    const pos = a.attach.pos, col = COL[pos], up = pos.startsWith('above');
+    const [aw, ah] = size.get(a.id);
+    const used = cursor.get(pos) || 0;
+    const x = col === 0 ? 0 : col > 0 ? hostSize[0] + GAP : -(aw + GAP);
+    const y = up ? -(used + ah + GAP) : hostSize[1] + GAP + used;
+    cursor.set(pos, used + ah + GAP);
+    out.set(a.id, [x, y]);
+  }
+  return out;
+}
 
 function stickySize(node) {
   if (node.type === 'actor') return [ACTOR[0], Math.max(ACTOR[1], 22 + Math.ceil(textWidth(node.text, 12) / (ACTOR[0] - 12)) * 16)];
@@ -40,17 +53,16 @@ export async function layoutBoard(bp) {
   const attached = new Map();
   for (const n of bp.nodes) if (n.attach) (attached.get(n.attach.to) || attached.set(n.attach.to, []).get(n.attach.to)).push(n);
   const size = new Map(bp.nodes.map((n) => [n.id, stickySize(n)]));
-  const STD_H = STICKY_MIN_H;
 
   const box = new Map();
   for (const n of bp.nodes) {
     if (n.attach) continue;
     const [w, h] = size.get(n.id);
     let minX = 0, minY = 0, maxX = w, maxY = h;
+    const offs = attachOffsets([w, h], attached.get(n.id) || [], size);
     for (const a of attached.get(n.id) || []) {
-      const [ox, oy] = ATTACH[a.attach.pos];
       const [aw, ah] = size.get(a.id);
-      const x = ox * STICKY_W, y = oy >= 0 ? h + (oy - 1) * STD_H : oy * STD_H;
+      const [x, y] = offs.get(a.id);
       minX = Math.min(minX, x); minY = Math.min(minY, y);
       maxX = Math.max(maxX, x + aw); maxY = Math.max(maxY, y + ah);
     }
@@ -79,8 +91,9 @@ export async function layoutBoard(bp) {
       edges: flowEdges.filter((e) => domainOf.get(e.from) === d.id && domainOf.get(e.to) === d.id)
         .map((e, i) => ({ id: `${d.id}-e${i}`, sources: [e.from], targets: [e.to] })),
     });
-    // The ellipse is the block: wide enough around the stickies, with room for the label on top.
-    const rx = inner.width / 2 * 1.22 + 40, ry = inner.height / 2 * 1.3 + 56;
+    // The ellipse is the block. An ellipse with radii √2 × the half sides holds the whole rectangle, so no sticky
+    // pokes out; the 16 px the stickies sit below the centre (room for the label) is added to the height.
+    const rx = (inner.width / 2 + 24) * Math.SQRT2, ry = (inner.height / 2 + 16 + 24) * Math.SQRT2;
     blocks.push({ domain: d.id, inner, rx, ry, w: 2 * rx, h: 2 * ry });
   }
 
@@ -118,10 +131,11 @@ export async function layoutBoard(bp) {
       const r = { x: ix + c.x + bx.ox, y: iy + c.y + bx.oy, w, h };
       rect.set(n.id, r);
       stickies.push({ node: n, r, z: 2 });
+      const offs = attachOffsets([w, h], attached.get(n.id) || [], size);
       for (const a of attached.get(n.id) || []) {
-        const [ox, oy] = ATTACH[a.attach.pos];
         const [aw, ah] = size.get(a.id);
-        const ar = { x: r.x + ox * STICKY_W, y: oy >= 0 ? r.y + h + (oy - 1) * STD_H : r.y + oy * STD_H, w: aw, h: ah };
+        const [ox, oy] = offs.get(a.id);
+        const ar = { x: r.x + ox, y: r.y + oy, w: aw, h: ah };
         rect.set(a.id, ar);
         stickies.push({ node: a, r: ar, z: 3 });
       }
