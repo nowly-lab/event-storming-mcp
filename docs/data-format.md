@@ -46,7 +46,8 @@ There is no path state field. `check --repo <product-root>` fails when a `path` 
 | Key | Type | Meaning |
 | --- | --- | --- |
 | `product` | string, optional | Product name shown in every page header (defaults to `title`) |
-| `domains` | list | `{ "id", "name", "note"? }`. Drawn as an ellipse around its stickies. |
+| `domains` | list | `{ "id", "name", "note"? }`. Drawn as an ellipse around its stickies, or as a horizontal lane when `phases` is set. |
+| `phases` | list, optional | `{ "id", "name", "note"? }`, in business-time order: the timeline's phases ("店で調べる", "仕入れを決める", …). With phases the board draws each domain as a lane and each phase as a column from left to right, and events sit in their phase's column. Without phases the board is drawn as before. |
 | `nodes` | list | Stickies (below) |
 | `edges` | list | `{ "from", "to", "kind" }`; `kind` is `flow` (solid arrow, what happens next) or `result` (dotted arrow, an event updates a read model) |
 
@@ -64,6 +65,7 @@ Sticky (`nodes[]`):
 | `changed` | boolean, optional | `true` marks a sticky that the current plan adds or changes. Planning clears the previous plan's marks before setting its own. |
 | `note` | string, optional | Extra detail shown in the side panel |
 | `evidence` | list, optional | See shared parts |
+| `phase` | string, optional | A `phases[].id`: the timeline phase this sticky belongs to. Required on every event when `phases` is set; other stickies may leave it out and take the phase of the next event along their `flow` edges (else the previous one; else a leading 区切りなし column). Not allowed on an attached sticky, which sits with its host. |
 
 Rules:
 
@@ -74,6 +76,7 @@ Rules:
 - Every `policy` has an incoming edge from an `event` (a `scheduled` policy may have none: it starts from the clock) and an outgoing edge to a `command`, or to an `actor` that issues a `command` when a person decides.
 - Every `aggregate` sits in the flow: an incoming edge from a `command` and an outgoing edge to an `event`.
 - Every state-changing `command` reaches an `event` through its outgoing `flow` edges.
+- With `phases`, time runs left to right: following `flow` edges from an event, the next event is never in an earlier phase. An unknown or repeated phase id is a structural error; a missing event phase or a backward flow is a rule warning.
 
 `event-command-map.html` is derived from these stickies and edges: (read model →) actor or policy → command → aggregate (with its invariants) or external system → event, and event → policy (with execution) → (actor →) command.
 

@@ -1,7 +1,7 @@
 import type { Edge, ModelData, Node } from "./engine.ts";
 import type { ChangeSummary } from "../store/history.ts";
 
-const FIELDS: (keyof Node)[] = ["text", "type", "domain", "execution", "invariants", "attach", "note", "evidence", "changed"];
+const FIELDS: (keyof Node)[] = ["text", "type", "domain", "execution", "invariants", "attach", "note", "evidence", "changed", "phase"];
 const edgeKey = (e: Edge) => `${e.from}>${e.to}>${e.kind}`;
 
 /** Which stickies were added, removed or changed between two versions, and which fields changed. */

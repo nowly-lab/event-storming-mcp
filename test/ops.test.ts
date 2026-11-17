@@ -93,3 +93,36 @@ test("diffModels detects added, removed, text-updated nodes and edge counts", ()
   assert.equal(summaryText({ ...s, edgesAdded: 1 }), "付箋を2件追加、1件変更、矢印を1件追加");
   assert.equal(summaryText({ added: [], removed: [], updated: [], edgesAdded: 0, edgesRemoved: 0 }), "変更なし");
 });
+
+function timeline(): ModelData {
+  const dir = join(SAMPLE, "..", "timeline", "data");
+  const r = (f: string) => JSON.parse(readFileSync(join(dir, `${f}.json`), "utf8"));
+  return { "big-picture": r("big-picture"), "domain-glossary": r("domain-glossary"), "workflow-models": r("workflow-models"), "context-map": r("context-map") };
+}
+
+test("setPhases replaces the phases; removing one still in use is a structural error", async () => {
+  const d = timeline();
+  const { data } = applyOps(d, [{ op: "setPhases", phases: [{ id: "store", name: "店" }, { id: "decide", name: "決める" }, { id: "books", name: "帳簿" }, { id: "later", name: "あと" }] }]);
+  assert.deepEqual(data["big-picture"].phases!.map((p) => p.id), ["store", "decide", "books", "later"]);
+  const { validateStructure } = await engine();
+  const { data: broken } = applyOps(d, [{ op: "setPhases", phases: [{ id: "store", name: "店" }] }]);
+  assert.ok(validateStructure(broken).some((e) => /decide|books/.test(e)));
+});
+
+test("addNode after a sticky with a phase takes that phase (not when attached)", () => {
+  const d = timeline();
+  const { data } = applyOps(d, [
+    { op: "addNode", node: { id: "rechecked", type: "event", text: "相場を確かめ直した" }, after: "priced" },
+    { op: "addNode", node: { id: "q", type: "hotspot", domain: "visit", text: "いつ確かめ直す？", attach: { to: "priced", pos: "below" } } },
+  ]);
+  const by = (id: string) => data["big-picture"].nodes.find((n) => n.id === id)!;
+  assert.equal(by("rechecked").phase, "store");
+  assert.equal(by("q").phase, undefined);
+});
+
+test("updateNode can move an event to another phase, and the diff says so", () => {
+  const d = timeline();
+  const { data } = applyOps(d, [{ op: "updateNode", id: "decided", patch: { phase: "books" } }]);
+  assert.equal(data["big-picture"].nodes.find((n) => n.id === "decided")!.phase, "books");
+  assert.deepEqual(diffModels(d, data).updatedFields.decided, ["phase"]);
+});

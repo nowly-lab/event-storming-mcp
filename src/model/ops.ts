@@ -14,6 +14,7 @@ const NodeFields = {
   attach: z.object({ to: z.string(), pos: z.enum(["above", "below", "above-left", "above-right", "below-left", "below-right"]) }).optional(),
   note: z.string().optional(),
   evidence: z.array(EvidenceSchema).optional(),
+  phase: z.string().optional(),
 };
 
 /** One edit to the model. The MCP tool and the page send lists of these; both are parsed with this schema. */
@@ -23,6 +24,7 @@ export const OpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("removeNode"), id: z.string() }),
   z.object({ op: z.literal("addEdge"), from: z.string(), to: z.string(), kind: z.enum(["flow", "result"]) }),
   z.object({ op: z.literal("removeEdge"), from: z.string(), to: z.string(), kind: z.enum(["flow", "result"]).optional() }),
+  z.object({ op: z.literal("setPhases"), phases: z.array(z.object({ id: z.string(), name: z.string(), note: z.string().optional() })) }),
   z.object({ op: z.literal("upsertDomain"), domain: z.object({ id: z.string(), name: z.string(), note: z.string().optional() }) }),
   z.object({ op: z.literal("replaceFile"), file: z.enum(["domain-glossary", "workflow-models", "context-map"]), content: z.unknown() }),
 ]);
@@ -84,7 +86,9 @@ export function applyOps(input: ModelData, ops: Op[]): { data: ModelData; summar
         if (!domain) throw new OpError("新しい付箋のドメインがありません。node.domain を書くか、after でつなぐ付箋を指定してください。");
         const id = op.node.id ?? newNodeId(data, op.node.type);
         if (bp.nodes.some((n) => n.id === id)) throw new OpError(`付箋 id "${id}" はもう使われています。`);
-        const n: Node = { ...stripUndefined({ ...op.node, id, domain }) } as Node;
+        // A sticky added after one with a phase joins that phase (an attached sticky follows its host instead).
+        const phase = op.node.phase ?? (!op.node.attach ? after?.phase : undefined);
+        const n: Node = { ...stripUndefined({ ...op.node, id, domain, phase }) } as Node;
         bp.nodes.push(n);
         if (after) bp.edges.push({ from: after.id, to: id, kind: after.type === "event" && n.type === "readModel" ? "result" : "flow" });
         break;
@@ -117,6 +121,10 @@ export function applyOps(input: ModelData, ops: Op[]): { data: ModelData; summar
         if (bp.edges.length === before) throw new OpError(`${op.from} → ${op.to} の矢印はありません。`);
         break;
       }
+      case "setPhases":
+        if (op.phases.length) bp.phases = op.phases.map((p) => stripUndefined({ ...p }));
+        else delete bp.phases;
+        break;
       case "upsertDomain": {
         const d = bp.domains.find((x) => x.id === op.domain.id);
         if (d) Object.assign(d, stripUndefined(op.domain));

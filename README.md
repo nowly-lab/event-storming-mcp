@@ -83,6 +83,7 @@ npm run build
 node scripts/compare-renders.mjs <model-dir>...                      # render matches the committed pages, byte for byte
 node scripts/e2e-browser.mjs <server-url> <slug> <model-dir> <out>   # browser check with system Chrome
 node scripts/e2e-session.mjs <server-url> <slug> <out>               # 「このセッションの変更」 and the mouse wheel (changes the model: use a copy)
+node scripts/e2e-timeline.mjs <server-url> <slug> <out>              # timeline lanes (use a copy of test/model/fixtures/timeline)
 ```
 
 The ELK layout bundle in `model/vendor` is elkjs 0.9.3 under EPL-2.0 ([ELK-LICENSE.md](model/vendor/ELK-LICENSE.md)); the rest is MIT.
