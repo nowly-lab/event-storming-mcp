@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Browser check against a running server: live redraw from MCP, inline edits, delete with its list,
-// a draft surviving a remote change, and the history page. Needs Google Chrome.
+// Browser check against a running server: drag to pan, live redraw from MCP, inline edits, delete with its
+// list, a draft surviving a remote change, the history page, and drag to pan on the generated pages. Needs Google Chrome.
 //   node scripts/e2e-browser.mjs <server-url> <project-slug> <model-dir> <screenshot-dir>
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -30,6 +30,45 @@ const f = frame();
 // Zoom to 100% and bring a sticky into view.
 await f.click('.zoom-ctrl [data-z="one"]');
 const focus = async (id) => f.evaluate((id) => document.getElementById('n-' + id).scrollIntoView({ block: 'center', inline: 'center' }), id);
+const fr0 = await page.locator('iframe').boundingBox();
+const scroll = () => f.evaluate(() => { const v = document.querySelector('.zoom-view'); return { x: v.scrollLeft, y: v.scrollTop }; });
+
+// 0. Drag on empty canvas pans the board; stickies, the handle and editing keep their own drags.
+// Zoom in so the board scrolls both ways.
+await f.click('.zoom-ctrl [data-z="in"]');
+await f.click('.zoom-ctrl [data-z="in"]');
+await f.evaluate(() => { const v = document.querySelector('.zoom-view'); v.scrollLeft = (v.scrollWidth - v.clientWidth) / 2; v.scrollTop = (v.scrollHeight - v.clientHeight) / 2; });
+const emptyPoint = () => f.evaluate(() => {
+  const r = document.querySelector('.zoom-view').getBoundingClientRect();
+  for (let dy = 0; dy < r.height / 2; dy += 8) for (let dx = 0; dx < r.width / 2; dx += 8) for (const [x, y] of [[r.left + r.width / 2 + dx, r.top + r.height / 2 + dy], [r.left + r.width / 2 - dx, r.top + r.height / 2 - dy]]) {
+    if (!document.elementsFromPoint(x, y).some((e) => e.closest('.note, .zoom-ctrl, .esm-tools, .esm-handle, path.edge'))) return { x, y };
+  }
+  return null;
+});
+const empty = await emptyPoint();
+const s0 = await scroll();
+await page.mouse.move(fr0.x + empty.x, fr0.y + empty.y);
+await page.mouse.down();
+await page.mouse.move(fr0.x + empty.x - 160, fr0.y + empty.y - 90, { steps: 10 });
+await page.mouse.up();
+const s1 = await scroll();
+const selected = await f.evaluate(() => String(getSelection()));
+check('何もない所をドラッグすると全体像が動く', Math.abs(s1.x - s0.x - 160) <= 3 && Math.abs(s1.y - s0.y - 90) <= 3 && selected === '', `${s0.x},${s0.y} → ${s1.x},${s1.y}`);
+// Drag back from another empty point; the press that ends a pan selects nothing even over a sticky.
+const back = await emptyPoint();
+await page.mouse.move(fr0.x + back.x, fr0.y + back.y);
+await page.mouse.down();
+await page.mouse.move(fr0.x + back.x + 160, fr0.y + back.y + 90, { steps: 10 });
+await page.mouse.up();
+const s2 = await scroll();
+check('動かした後に付箋の選択や矢印の選択が起きない', Math.abs(s2.x - s0.x) <= 3 && Math.abs(s2.y - s0.y) <= 3 && await f.locator('.esm-tools').count() === 0 && await f.locator('.edge.esm-sel').count() === 0);
+// The guard against the click that ends a pan must not eat a later keyboard click.
+const zoomBefore = await f.textContent('.zoom-ctrl output');
+await f.focus('.zoom-ctrl [data-z="fit"]');
+await f.press('.zoom-ctrl [data-z="fit"]', 'Enter');
+const zoomText = await f.textContent('.zoom-ctrl output');
+check('動かした後もキーボードで「全体」が押せる', zoomText !== zoomBefore, `${zoomBefore} → ${zoomText}`);
+await f.click('.zoom-ctrl [data-z="one"]');
 
 // 1. MCP change redraws within 1 s, with a toast.
 const m = await call('get_model', { project: slug });
@@ -45,6 +84,19 @@ await page.screenshot({ path: join(out, '01-live-redraw.png') });
 
 // 2. Double-click to edit text.
 await f.dblclick(`#n-${ev.id}`);
+{
+  await f.fill('.esm-input', 'ドラッグで選ぶ文字');
+  const ib = await f.locator('.esm-input').boundingBox();
+  const before = await scroll();
+  // A locator's box is already in page coordinates.
+  await page.mouse.move(ib.x + 6, ib.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(ib.x + ib.width * 0.6, ib.y + 12, { steps: 8 });
+  await page.mouse.up();
+  const sel = await f.evaluate(() => { const t = document.querySelector('.esm-input'); return t ? t.selectionEnd - t.selectionStart : -1; });
+  const after = await scroll();
+  check('入力中はドラッグで文字を選べて、図は動かない', sel > 0 && before.x === after.x && before.y === after.y, `選択 ${sel} 文字`);
+}
 await f.fill('.esm-input', '画面で直した');
 await f.press('.esm-input', 'Enter');
 await page.waitForTimeout(600);
@@ -153,6 +205,31 @@ await page.waitForTimeout(800);
 const hist = await call('list_history', { project: slug, limit: 1 });
 check('履歴に一覧が出て、この版に戻すと新しい版として記録される', rows >= 7 && /に戻した/.test(hist[0].summary), `${rows} 行`);
 await page.screenshot({ path: join(out, '07-restored.png') });
+
+// 9. The generated pages opened from disk pan the same way, also when the pointer leaves the box early.
+for (const file of ['big-picture', 'workflow-models', 'context-map']) {
+  await page.goto(`file://${join(modelDir, file + '.html')}`);
+  await page.waitForTimeout(300);
+  const r = await page.evaluate(() => {
+    const v = document.querySelector('.zoom-view');
+    v.scrollIntoView({ block: 'start' });
+    v.querySelector('.zoom-content').style.zoom = 6; // big enough to scroll both ways
+    v.scrollLeft = 200; v.scrollTop = Math.min(200, v.scrollHeight - v.clientHeight);
+    const b = v.getBoundingClientRect();
+    for (let dy = 20; dy < b.height - 20; dy += 8) for (let dx = 20; dx < b.width - 20; dx += 8) {
+      const els = document.elementsFromPoint(b.left + dx, b.top + dy);
+      if (els[0]?.closest('.zoom-view') && !els.some((e) => e.closest('.note, .zoom-ctrl, a, button, .gbox, text'))) return { x: b.left + dx, y: b.top + dy, left: v.scrollLeft, top: v.scrollTop, maxTop: v.scrollHeight - v.clientHeight };
+    }
+    return null;
+  });
+  await page.mouse.move(r.x, r.y);
+  await page.mouse.down();
+  await page.mouse.move(r.x - 100, r.y - 60, { steps: 8 });
+  await page.mouse.up();
+  const after = await page.evaluate(() => { const v = document.querySelector('.zoom-view'); return { left: v.scrollLeft, top: v.scrollTop }; });
+  const dy = Math.min(60, r.maxTop - r.top);
+  check(`生成ページ ${file}.html もドラッグで動く`, Math.abs(after.left - r.left - 100) <= 3 && Math.abs(after.top - r.top - dy) <= 3, `${r.left},${r.top} → ${after.left},${after.top}`);
+}
 
 check('画面にスクリプトエラーがない', errors.length === 0, errors.join(' / '));
 await browser.close();

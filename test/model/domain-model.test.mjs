@@ -9,6 +9,7 @@ import { run, readData } from '../../model/domain-model.mjs';
 import { validateModel } from '../../model/lib/validate.mjs';
 import { layoutBoard } from '../../model/lib/layout.mjs';
 import { deriveEventCommandMap } from '../../model/lib/render.mjs';
+import { canStartPan, panStep, PAN_THRESHOLD } from '../../model/lib/pan.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SAMPLE = join(here, 'fixtures', 'sample');
@@ -272,7 +273,7 @@ test('usage errors exit 2', async () => {
   assert.equal(await run(['check', SAMPLE, '--nope'], capture().out), 2);
 });
 
-test('the board and the diagrams can be pinch-zoomed; the page scripts parse', async () => {
+test('the board and the diagrams can be pinch-zoomed and dragged; the page scripts parse', async () => {
   const dir = tempModel();
   try {
     await run(['render', dir], capture().out);
@@ -282,6 +283,8 @@ test('the board and the diagrams can be pinch-zoomed; the page scripts parse', a
       assert.match(html, /addEventListener\('wheel'/, f);
       assert.match(html, /addEventListener\('gesturechange'/, f);
       assert.match(html, /addEventListener\('touchmove'/, f);
+      assert.match(html, /addEventListener\('pointermove'/, f);
+      assert.match(html, /function canStartPan\(/, f);
       for (const [, js] of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) assert.doesNotThrow(() => new Function(js), f);
     }
     assert.doesNotMatch(readFileSync(join(dir, 'domain-glossary.html'), 'utf8'), /zoomable/);
@@ -333,4 +336,24 @@ test('with no changed marks, no page shows the changes card or the toggle', asyn
       assert.doesNotMatch(html, /id="show-changed"|class="[^"]*(is-changed|chip changed)|class="new"/, f);
     }
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+const at = (hit) => ({ closest: (sel) => (sel.split(',').some((s) => hit.includes(s.trim())) ? {} : null) });
+test('canStartPan: left mouse or pen on empty canvas or an arrow, never on stickies, tools, inputs or touch', () => {
+  assert.equal(canStartPan({ button: 0, pointerType: 'mouse', target: at([]) }), true);
+  assert.equal(canStartPan({ button: 0, pointerType: 'pen', target: at(['path.edge']) }), true);
+  for (const sel of ['.note', '[data-no-pan]', '.zoom-ctrl', 'a', 'button', 'textarea', 'input', 'select', '[contenteditable]']) {
+    assert.equal(canStartPan({ button: 0, pointerType: 'mouse', target: at([sel]) }), false, sel);
+  }
+  assert.equal(canStartPan({ button: 2, pointerType: 'mouse', target: at([]) }), false);
+  assert.equal(canStartPan({ button: 0, pointerType: 'touch', target: at([]) }), false);
+  assert.equal(canStartPan({ button: 0, pointerType: 'mouse', target: null }), false);
+});
+
+test('panStep: nothing moves within the threshold, then the content follows the pointer', () => {
+  const start = { x: 100, y: 100, left: 500, top: 300 };
+  assert.deepEqual(panStep(start, 102, 101, false, PAN_THRESHOLD), { moving: false, left: 500, top: 300 });
+  assert.deepEqual(panStep(start, 100 - PAN_THRESHOLD - 1, 100, false, PAN_THRESHOLD), { moving: true, left: 500 + PAN_THRESHOLD + 1, top: 300 });
+  // Once moving, small movements still pan (no snap back); dragging down-right scrolls up-left.
+  assert.deepEqual(panStep(start, 101, 102, true, PAN_THRESHOLD), { moving: true, left: 499, top: 298 });
 });

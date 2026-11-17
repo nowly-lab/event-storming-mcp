@@ -76,6 +76,8 @@ ul.plain { margin: 0; padding-left: 18px; }
 
 .zoomable { position: relative; min-width: 0; }
 .zoom-view { overflow: auto; overscroll-behavior: contain; touch-action: pan-x pan-y; max-height: 80vh; }
+.zoom-view { cursor: grab; }
+.zoom-view.panning, .zoom-view.panning * { cursor: grabbing !important; user-select: none; }
 .zoom-view:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .zoom-content { width: max-content; }
 .zoom-ctrl { position: absolute; top: 8px; right: 8px; z-index: 25; display: flex; align-items: center; gap: 2px; padding: 3px;
@@ -99,14 +101,25 @@ ul.plain { margin: 0; padding-left: 18px; }
 
 <section class="card" id="relations"><h2>関係図</h2><div class="zoomable" data-fit="width">
 <div class="zoom-ctrl" role="toolbar" aria-label="拡大縮小"><button type="button" data-z="out" aria-label="縮小">−</button><output aria-live="polite">100%</output><button type="button" data-z="in" aria-label="拡大">＋</button><button type="button" data-z="fit">全体</button><button type="button" data-z="one">等倍</button></div>
-<div class="zoom-view diagram" tabindex="0" aria-label="ピンチまたは Ctrl/⌘ + ホイールで拡大縮小"><div class="zoom-content"><svg class="graph" viewBox="0 0 1978 112" width="1978" height="112" role="img" aria-label="境界"><defs><marker id="gh-2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1L10 5L0 9z" class="headfill"/></marker></defs><polyline class="gedge" points="939,56 1197,56" marker-end="url(#gh-2)"/><rect class="glabel-bg" x="1009" y="33" width="118" height="18" rx="3"/><text class="glabel" x="1068" y="46" text-anchor="middle">読み書きと版の通知</text><polyline class="gedge" points="339,56 588,56" marker-end="url(#gh-2)"/><rect class="glabel-bg" x="409" y="33" width="109" height="18" rx="3"/><text class="glabel" x="463.5" y="46" text-anchor="middle">画面 API と SSE</text><polyline class="gedge" points="1549,56 1759,56" marker-end="url(#gh-2)"/><rect class="glabel-bg" x="1619" y="33" width="70" height="18" rx="3"/><text class="glabel" x="1654" y="46" text-anchor="middle">検証と描画</text><rect class="gbox" x="1197" y="28" width="352" height="56" rx="8"/><text class="gtext" x="1373" y="52" text-anchor="middle">モデルの保存と版</text><text class="gsub" x="1373" y="71" text-anchor="middle">Node・ファイル（project.json・history.jsonl・blobs）</text><rect class="gbox" x="588" y="28" width="351" height="56" rx="8"/><text class="gtext" x="763.5" y="52" text-anchor="middle">ローカルサーバーと MCP</text><text class="gsub" x="763.5" y="71" text-anchor="middle">node:http・MCP SDK（Streamable HTTP と stdio 中継）</text><rect class="gbox" x="28" y="28" width="311" height="56" rx="8"/><text class="gtext" x="183.5" y="52" text-anchor="middle">会議ボードの画面</text><text class="gsub" x="183.5" y="71" text-anchor="middle">TypeScript・esbuild・iframe で生成ページを表示</text><rect class="gbox" x="1759" y="28" width="191" height="56" rx="8"/><text class="gtext" x="1854.5" y="52" text-anchor="middle">モデルの検証と描画</text><text class="gsub" x="1854.5" y="71" text-anchor="middle">JavaScript（model/）・ELK</text></svg></div></div>
+<div class="zoom-view diagram" tabindex="0" aria-label="ピンチまたは Ctrl/⌘ + ホイールで拡大縮小、ドラッグで移動"><div class="zoom-content"><svg class="graph" viewBox="0 0 1978 112" width="1978" height="112" role="img" aria-label="境界"><defs><marker id="gh-2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1L10 5L0 9z" class="headfill"/></marker></defs><polyline class="gedge" points="939,56 1197,56" marker-end="url(#gh-2)"/><rect class="glabel-bg" x="1009" y="33" width="118" height="18" rx="3"/><text class="glabel" x="1068" y="46" text-anchor="middle">読み書きと版の通知</text><polyline class="gedge" points="339,56 588,56" marker-end="url(#gh-2)"/><rect class="glabel-bg" x="409" y="33" width="109" height="18" rx="3"/><text class="glabel" x="463.5" y="46" text-anchor="middle">画面 API と SSE</text><polyline class="gedge" points="1549,56 1759,56" marker-end="url(#gh-2)"/><rect class="glabel-bg" x="1619" y="33" width="70" height="18" rx="3"/><text class="glabel" x="1654" y="46" text-anchor="middle">検証と描画</text><rect class="gbox" x="1197" y="28" width="352" height="56" rx="8"/><text class="gtext" x="1373" y="52" text-anchor="middle">モデルの保存と版</text><text class="gsub" x="1373" y="71" text-anchor="middle">Node・ファイル（project.json・history.jsonl・blobs）</text><rect class="gbox" x="588" y="28" width="351" height="56" rx="8"/><text class="gtext" x="763.5" y="52" text-anchor="middle">ローカルサーバーと MCP</text><text class="gsub" x="763.5" y="71" text-anchor="middle">node:http・MCP SDK（Streamable HTTP と stdio 中継）</text><rect class="gbox" x="28" y="28" width="311" height="56" rx="8"/><text class="gtext" x="183.5" y="52" text-anchor="middle">会議ボードの画面</text><text class="gsub" x="183.5" y="71" text-anchor="middle">TypeScript・esbuild・iframe で生成ページを表示</text><rect class="gbox" x="1759" y="28" width="191" height="56" rx="8"/><text class="gtext" x="1854.5" y="52" text-anchor="middle">モデルの検証と描画</text><text class="gsub" x="1854.5" y="71" text-anchor="middle">JavaScript（model/）・ELK</text></svg></div></div>
 </div></section>
 <section class="card"><h2>責任と契約</h2><div class="scroll"><table><thead><tr><th>境界</th><th>責任</th><th>持っている状態</th><th>契約</th><th>保証すること</th><th>ドメイン</th><th>証拠</th></tr></thead><tbody><tr id="ctx-store" class=""><th scope="row">モデルの保存と版<div class="meta">Node・ファイル（project.json・history.jsonl・blobs）</div></th><td>登録プロジェクト、版、検証、競合、ファイル監視</td><td><ul class="plain"><li>~/.event-storming-mcp</li><li>製品リポジトリの data/*.json と生成HTMLへの書き込み</li></ul></td><td><ul class="plain"><li>ModelStore.read / apply / restore / ingest</li><li>ApplyResult（ok・conflict・invalid）</li></ul></td><td><ul class="plain"><li>古い版からの書き込みは断る</li><li>構造の誤りは保存しない</li></ul></td><td><span class="code">登録と起動</span><span class="code">会議でのイベントストーミング</span><span class="code">履歴と復元</span></td><td><div class="path">src/store/model-store.ts <span class="code">export type ApplyResult</span></div></td></tr><tr id="ctx-server" class=""><th scope="row">ローカルサーバーと MCP<div class="meta">node:http・MCP SDK（Streamable HTTP と stdio 中継）</div></th><td>画面の API・ライブ通知・MCP のツール</td><td><ul class="plain"><li>server.json</li></ul></td><td><ul class="plain"><li>/api/projects/...</li><li>/mcp の 10 ツール</li></ul></td><td><ul class="plain"><li>127.0.0.1 だけで待ち受ける</li><li>画面からの書き込みは nonce 必須、/mcp は Origin 付きを断る</li></ul></td><td><span class="code">登録と起動</span><span class="code">会議でのイベントストーミング</span></td><td><div class="path">src/server/http.ts <span class="code">export async function startServer</span></div></td></tr><tr id="ctx-web" class=""><th scope="row">会議ボードの画面<div class="meta">TypeScript・esbuild・iframe で生成ページを表示</div></th><td>描き直し、図の上での編集、履歴の前後比較</td><td><ul class="plain"><li>画面の編集状態</li></ul></td><td><ul class="plain"><li>画面 API（nonce 付き）</li></ul></td><td>—</td><td><span class="code">会議でのイベントストーミング</span><span class="code">履歴と復元</span></td><td><div class="path">web/main.ts <span class="code">async function go</span></div></td></tr><tr id="ctx-engine" class=""><th scope="row">モデルの検証と描画<div class="meta">JavaScript（model/）・ELK</div></th><td>データ形式の検証と HTML の描画、CLI</td><td><ul class="plain"><li>model/</li><li>docs/data-format.md</li></ul></td><td><ul class="plain"><li>init / validate / render / check --repo</li></ul></td><td>—</td><td><span class="code">モデルの検証と描画</span></td><td><div class="path">model/lib/render.mjs <span class="code">export async function renderModel</span></div></td></tr></tbody></table></div></section>
 </main>
 
 
 <script>(function(){
-var MIN = 0.1, MAX = 4;
+var MIN = 0.1, MAX = 4, PAN_THRESHOLD = 4;
+function canStartPan(e) {
+  if (e.button !== 0 || e.pointerType === 'touch') return false;
+  var t = e.target;
+  if (!t || typeof t.closest !== 'function') return false;
+  return !t.closest('.note, .zoom-ctrl, a, button, input, textarea, select, [contenteditable], [data-no-pan]');
+}
+function panStep(start, x, y, moving, threshold) {
+  var dx = x - start.x, dy = y - start.y;
+  if (!moving && Math.hypot(dx, dy) <= threshold) return { moving: false, left: start.left, top: start.top };
+  return { moving: true, left: start.left - dx, top: start.top - dy };
+}
 document.querySelectorAll('.zoomable').forEach(function (box) {
   var view = box.querySelector('.zoom-view'), content = box.querySelector('.zoom-content'), out = box.querySelector('output');
   var s = 1, w = content.offsetWidth, h = content.offsetHeight;
@@ -162,6 +175,47 @@ document.querySelectorAll('.zoomable').forEach(function (box) {
   }, { passive: false });
   view.addEventListener('touchend', function (e) { if (e.touches.length < 2) { t = null; touching = false; } });
   view.addEventListener('touchcancel', function () { t = null; touching = false; });
+  // Mouse or pen drag on empty canvas pans. Moves are followed on the whole page (the pointer may leave the
+  // box before it travels far enough), and pointer capture starts only once the press has moved, so a
+  // plain click still reaches what is under it; the click that ends a pan is dropped.
+  var p = null;
+  function movePan(e) {
+    if (!p || e.pointerId !== p.id) return;
+    // Released outside the page before the pan began: no pointerup came, so end it here.
+    if (e.pointerType === 'mouse' && !(e.buttons & 1)) return endPan(e);
+    var n = panStep(p.start, e.clientX, e.clientY, p.moving, PAN_THRESHOLD);
+    if (n.moving && !p.moving) {
+      p.moving = true; view.classList.add('panning'); view.setPointerCapture(e.pointerId);
+      var sel = document.getSelection(); if (sel) sel.removeAllRanges();
+    }
+    if (p.moving) { view.scrollLeft = n.left; view.scrollTop = n.top; }
+  }
+  function endPan(e) {
+    if (!p || e.pointerId !== p.id) return;
+    document.removeEventListener('pointermove', movePan);
+    document.removeEventListener('pointerup', endPan);
+    document.removeEventListener('pointercancel', endPan);
+    if (p.moving) {
+      view.classList.remove('panning');
+      if (view.hasPointerCapture(e.pointerId)) view.releasePointerCapture(e.pointerId);
+      // The click comes in the same task as pointerup, so the guard is dropped right after it; a later
+      // click (from the keyboard, or after a release outside the page that fired none) is never eaten.
+      var drop = function () { document.removeEventListener('click', swallow, true); };
+      var swallow = function (c) { c.stopPropagation(); c.preventDefault(); drop(); };
+      document.addEventListener('click', swallow, true);
+      setTimeout(drop, 0);
+    }
+    p = null;
+  }
+  view.addEventListener('pointerdown', function (e) {
+    if (p || !canStartPan(e)) return;
+    p = { id: e.pointerId, moving: false, start: { x: e.clientX, y: e.clientY, left: view.scrollLeft, top: view.scrollTop } };
+    document.addEventListener('pointermove', movePan);
+    document.addEventListener('pointerup', endPan);
+    document.addEventListener('pointercancel', endPan);
+  });
+  // No text selection while a press on the canvas may become a pan.
+  view.addEventListener('selectstart', function (e) { if (p) e.preventDefault(); });
   // Start: fit the width (never above 100%) for wide boards; otherwise 100%.
   var fit = box.dataset.fit;
   set(fit === 'width' ? Math.min(1, view.clientWidth / w) : fit === 'all' ? Math.min(1, fitAll()) : 1);

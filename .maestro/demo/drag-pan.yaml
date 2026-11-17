@@ -1,0 +1,37 @@
+# Demo: drag empty canvas to move the big picture on the live board.
+# Local stack (from the PR's worktree):
+#   npm install && npm run build
+#   export EVENT_STORMING_MCP_DATA_DIR=$(mktemp -d) EVENT_STORMING_MCP_BROWSER=none
+#   a git repo with test/model/fixtures/sample copied to docs-model and origin https://example.com/acme/shop.git, then
+#   node dist/cli.js render <repo>/docs-model && node dist/cli.js add <repo>/docs-model   # project slug: shop-ddfa4c
+#   export MAESTRO_ESM_URL=$(node dist/cli.js serve --no-open)
+#   python3 <implementation>/scripts/demo-video/demo_take.py web .maestro/demo/drag-pan.yaml <out> --points 1440x900 --window-title ライブボード
+# The drag points are empty canvas at 1440x900 with the board at 100% (等倍).
+url: ${MAESTRO_ESM_URL}/#/shop-ddfa4c/big-picture.html
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "等倍"
+    timeout: 60000
+- tapOn: "等倍"
+# Lead-in so the recording starts before the first action.
+- extendedWaitUntil:
+    visible: "この文字は出ません"
+    timeout: 9000
+    optional: true
+- swipe:
+    start: 45%, 69%
+    end: 15%, 69%
+    duration: 1500
+    label: "何もない所をドラッグ"
+- takeScreenshot: drag-1
+- swipe:
+    start: 40%, 69%
+    end: 70%, 69%
+    duration: 1500
+    label: "戻すのもドラッグ"
+- takeScreenshot: drag-2
+- extendedWaitUntil:
+    visible: "この文字も出ません"
+    timeout: 2000
+    optional: true
