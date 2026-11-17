@@ -1,6 +1,6 @@
 // Renders the domain model pages. Output depends only on the data, so `check` can compare it.
 import { layoutBoard, layoutGraph } from './layout.mjs';
-import { canStartPan, panStep, PAN_THRESHOLD } from './pan.mjs';
+import { canStartPan, panStep, wheelAction, PAN_THRESHOLD } from './pan.mjs';
 
 const TYPE = {
   actor: { ja: 'アクター', en: 'Actor', hint: '人・役割' },
@@ -120,6 +120,7 @@ const ZOOM_JS = `(function(){
 var MIN = 0.1, MAX = 4, PAN_THRESHOLD = ${PAN_THRESHOLD};
 ${canStartPan.toString()}
 ${panStep.toString()}
+${wheelAction.toString()}
 document.querySelectorAll('.zoomable').forEach(function (box) {
   var view = box.querySelector('.zoom-view'), content = box.querySelector('.zoom-content'), out = box.querySelector('output');
   var s = 1, w = content.offsetWidth, h = content.offsetHeight;
@@ -149,10 +150,13 @@ document.querySelectorAll('.zoomable').forEach(function (box) {
     e.preventDefault();
   });
   // Trackpad pinch in Chrome, Edge and Firefox arrives as wheel + ctrlKey; so does Ctrl/⌘ + wheel.
+  // A plain vertical wheel scrolls the board, or the page once the board cannot move that way.
   view.addEventListener('wheel', function (e) {
-    if (!e.ctrlKey && !e.metaKey) return;
+    var act = wheelAction(e, view);
+    if (act === 'view') return;
     e.preventDefault();
     var d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    if (act === 'page') { (document.scrollingElement || document.documentElement).scrollBy(0, d); return; }
     zoomAt(s * Math.exp(-Math.max(-50, Math.min(50, d)) * 0.01), e.clientX, e.clientY);
   }, { passive: false });
   // Safari trackpad pinch arrives as gesture events.
@@ -301,7 +305,7 @@ async function bigPicture(m, product) {
   ${zoomBox(`<div class="board" id="board" style="width:${L.width}px;height:${L.height}px">${svg}${notes}</div>`, { cls: 'wall', fit: 'width' })}
   <aside class="panel card" id="panel" aria-live="polite"><h2>付箋の詳細</h2><p class="foot">付箋を選ぶと、種類・ドメイン・つながり・コードの場所が出ます。</p></aside>
 </div>
-<p class="foot">ピンチ（または Ctrl/⌘ + ホイール、右上のボタン）で拡大縮小できます。実線は流れ、点線はイベントがリードモデルに反映されることを表します。重ねて貼った付箋は、その下の付箋に付く外部システム・懸念などです。</p>
+<p class="foot">ピンチ（または Ctrl/⌘ + ホイール、右上のボタン）で拡大縮小できます。実線は流れ、点線はイベントがリードモデルに反映されることを表します。付箋のすぐ隣に貼った付箋は、その付箋に付く外部システム・懸念などです。</p>
 <script type="application/json" id="nodes">${jsonForScript(panelData)}</script>`;
 
   const extraCss = `

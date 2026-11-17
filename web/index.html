@@ -25,13 +25,21 @@
     <span class="hint">ダブルクリックで文字を直す ・ 付箋の右の丸から引っぱって矢印 ・ 矢印を選んで Delete で削除</span>
     <details class="rules" id="rules" hidden><summary></summary><ul></ul></details>
   </div>
+  <div class="session-bar" id="session-bar" hidden>
+    <span id="base-label"></span>
+    <button type="button" class="btn" id="rebase">ここから比べ直す</button>
+    <label class="switch"><input type="checkbox" id="show-changes" checked> 変更を表示</label>
+  </div>
   <div class="stage-wrap">
   <div class="notices">
     <div class="banner warn" id="conflict" hidden><span>Claude が先に変更しました。最新を読み込んで編集し直してください</span><button type="button" class="btn" id="reload-latest">最新を読み込む</button></div>
     <div class="banner info" id="pending" hidden></div>
     <div class="banner error" id="file-error" hidden></div>
   </div>
-  <div class="stage" id="stage"></div>
+  <div class="board-row">
+    <div class="stage" id="stage"></div>
+    <aside class="changes" id="changes" aria-label="このセッションの変更" hidden></aside>
+  </div>
   </div>
   <section class="history" id="history" hidden>
     <div class="h-list"><h2>変更履歴</h2><ol id="h-items"></ol></div>

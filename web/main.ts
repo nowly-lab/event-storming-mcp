@@ -3,7 +3,9 @@ import { Board } from "./board.ts";
 import { connectLive, toastText, warningNodeIds } from "./live.ts";
 import { reduce, initialEdit, edgeKindFor, canRebase, type Effect, type EditState } from "./edit-state.ts";
 import { showHistory } from "./history.ts";
-import type { ApplyResult, Model, NodeType, Op, Project, Removal } from "./types.ts";
+import { renderChanges } from "./session.ts";
+import { baseFor, baseText, setBase, setShowChanges, showChanges, tabStore } from "./session-logic.ts";
+import type { ApplyResult, Model, NodeType, Op, Project, Removal, SessionDiff } from "./types.ts";
 
 const PAGES: [string, string][] = [
   ["big-picture.html", "全体像"], ["domain-glossary.html", "用語集"], ["event-command-map.html", "イベントとコマンド"],
@@ -24,6 +26,10 @@ let warnings: string[] = [];
 let edit: EditState = initialEdit();
 let live: { close(): void } | null = null;
 let lastAnchor: string | undefined;
+let diff: SessionDiff | null = null;
+// One store for the page: sessionStorage, backed by memory when it is blocked.
+const session = tabStore(() => window.sessionStorage);
+const tabStoreOf = () => session;
 
 const board = new Board($("stage"), {
   startText: (id, text) => dispatch({ type: "startText", id, text }),
@@ -103,6 +109,7 @@ async function reload(anchor = lastAnchor): Promise<void> {
   if (page === "history") return renderHistory();
   await board.refresh(api.pageUrl(slug, page), m.data, { anchor });
   board.mark([], warningNodeIds(warnings, m.data["big-picture"].nodes.map((n) => n.id)));
+  await refreshSession();
   if (edit.mode === "text" && edit.draft) board.editText(edit.draft.id, edit.draft.text);
 }
 
@@ -219,15 +226,44 @@ async function go(s: string, p: string): Promise<void> {
   model = m.data;
   setWarnings(m.warnings, m.htmlCurrent);
   $("bar").hidden = page !== "big-picture.html";
+  $("session-bar").hidden = page !== "big-picture.html";
   ($("stage").parentElement as HTMLElement).hidden = page === "history";
   $("history").hidden = page !== "history";
   if (page === "history") return renderHistory();
   await board.load(api.pageUrl(slug, page), page, m.data);
   board.mark([], warningNodeIds(warnings, m.data["big-picture"].nodes.map((n) => n.id)));
+  await refreshSession();
+}
+
+/** Re-reads what changed since this tab's base and shows it on the board and in 「このセッションの変更」. */
+async function refreshSession(): Promise<void> {
+  const on = page === "big-picture.html" && !!slug;
+  $("session-bar").hidden = !on;
+  $("changes").hidden = true;
+  if (!on) return;
+  const store = tabStoreOf();
+  const base = baseFor(store, slug, version);
+  $("base-label").textContent = baseText(store, slug, base);
+  const show = showChanges(store);
+  ($("show-changes") as HTMLInputElement).checked = show;
+  try {
+    diff = await api.sessionDiff(slug, base);
+  } catch (e) {
+    diff = null;
+    return toast((e as Error).message, true);
+  }
+  const textOf = (id: string) => model?.["big-picture"].nodes.find((n) => n.id === id)?.text ?? id;
+  renderChanges($("changes"), diff, textOf, (id) => board.focusNode(id));
+  $("changes").hidden = !show;
+  board.markSession(show ? diff : null);
 }
 
 function renderHistory(): Promise<void> {
-  return showHistory(slug, { list: $("h-items"), detail: $("h-detail") }, async (v) => {
+  const compare = (v: number) => {
+    setBase(tabStoreOf(), slug, v);
+    location.hash = `#/${encodeURIComponent(slug)}/big-picture.html`;
+  };
+  return showHistory(slug, { list: $("h-items"), detail: $("h-detail") }, compare, async (v) => {
     const seen = version;
     const ok = await modal(`版 ${v} に戻します`, "<p>今の版は履歴に残ります。戻すことも新しい版として記録します。</p>", "戻す");
     if (!ok) return;
@@ -278,6 +314,14 @@ $("add").addEventListener("click", () => {
   $("palette").hidden = !$("palette").hidden;
 });
 $("reload-latest").addEventListener("click", () => dispatch({ type: "reloadLatest" }));
+$("rebase").addEventListener("click", () => {
+  setBase(tabStoreOf(), slug, version);
+  void refreshSession();
+});
+$("show-changes").addEventListener("change", (e) => {
+  setShowChanges(tabStoreOf(), (e.target as HTMLInputElement).checked);
+  void refreshSession();
+});
 window.addEventListener("hashchange", route);
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);

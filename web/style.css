@@ -70,10 +70,30 @@ body { display: grid; grid-template-columns: 220px 1fr; background: var(--bg); c
 .h-detail { display: flex; flex-direction: column; min-height: 0; gap: 8px; }
 .h-detail header { display: flex; align-items: center; gap: 12px; }
 .h-detail header h3 { margin: 0; font-size: 18px; }
-.h-detail header .btn { margin-left: auto; }
+.h-detail header .btn:first-of-type { margin-left: auto; }
 .pair { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-height: 360px; }
 .pair figure { margin: 0; display: flex; flex-direction: column; min-height: 0; }
 .pair figcaption { font-weight: 700; padding: 2px 4px; }
 .pair iframe { flex: 1; width: 100%; border: 1px solid var(--line); border-radius: 8px; }
 .legend-diff { display: flex; gap: 16px; font-size: 13px; }
 .legend-diff i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 3px solid; vertical-align: -2px; margin-right: 4px; }
+.session-bar[hidden] { display: none; }
+.session-bar { display: flex; align-items: center; gap: 14px; padding: 0 20px 6px; font-size: 13px; }
+.session-bar .switch { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.board-row { flex: 1; min-height: 0; display: flex; }
+.board-row .stage { flex: 1; min-width: 0; }
+.changes[hidden] { display: none; }
+.changes { width: 300px; flex: none; margin: 4px 20px 16px 0; overflow: auto; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.changes h2 { font-size: 15px; margin: 0; }
+.changes .foot, .changes .empty { font-size: 12px; color: var(--soft); margin: 2px 0 8px; }
+.changes ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.chg { width: 100%; display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: center; text-align: left; font: inherit; font-size: 13px; color: var(--ink); background: none; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+.chg:hover:not([disabled]) { background: var(--row); }
+.chg[disabled] { cursor: default; }
+.chg b { grid-row: span 2; font-size: 11px; color: #fff; border-radius: 99px; padding: 1px 7px; }
+.chg.added b { background: var(--ok); }
+.chg.updated b { background: #b98f00; }
+.chg.removed b { background: var(--bad); }
+.chg.removed .t { text-decoration: line-through; color: var(--soft); }
+.chg small { color: var(--soft); font-size: 11px; }
+@media (max-width: 900px) { .changes { display: none; } }

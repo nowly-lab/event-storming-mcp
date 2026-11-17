@@ -100,6 +100,31 @@
           "role": "source"
         }
       ]
+    },
+    {
+      "term": "比べる基準",
+      "meaning": "このセッションの変更を数え始める版。タブでボードを開いた時点の版が既定で、「ここから比べ直す」や履歴の「この版から比べる」で変える",
+      "code": [
+        "baseFor",
+        "setBase"
+      ],
+      "nodes": [
+        "base-agg",
+        "base-set"
+      ],
+      "changed": true
+    },
+    {
+      "term": "このセッションの変更",
+      "meaning": "比べる基準の版と今の版の差（付箋の追加・変更・削除、矢印の追加・削除）と、間の版を記録した人やエージェント",
+      "code": [
+        "sessionDiff",
+        "SessionDiff"
+      ],
+      "nodes": [
+        "session-diff"
+      ],
+      "changed": true
     }
   ]
 }

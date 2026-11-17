@@ -1,4 +1,4 @@
-import type { ApplyResult, Model, Op, Project, Removal, VersionEntry } from "./types.ts";
+import type { ApplyResult, Model, Op, Project, Removal, SessionDiff, VersionEntry } from "./types.ts";
 
 const nonce = () => document.querySelector<HTMLMetaElement>('meta[name="esm-nonce"]')?.content ?? "";
 const base = (slug: string) => `/api/projects/${encodeURIComponent(slug)}`;
@@ -20,6 +20,7 @@ export const api = {
   projects: () => get<Project[]>("/api/projects"),
   model: (slug: string) => get<{ version: number; data: Model; warnings: string[]; htmlCurrent: boolean }>(`${base(slug)}/model`),
   history: (slug: string) => get<VersionEntry[]>(`${base(slug)}/history`),
+  sessionDiff: (slug: string, from: number) => get<SessionDiff>(`${base(slug)}/session-diff?from=${from}`),
   pageUrl: (slug: string, page: string, version?: number) => `${base(slug)}/pages/${page}${version ? `?version=${version}` : ""}`,
   apply: (slug: string, baseVersion: number, ops: Op[]) => post<ApplyResult>(`${base(slug)}/changes`, { baseVersion, ops }),
   previewRemove: (slug: string, id: string) => post<{ version: number; removal: Removal }>(`${base(slug)}/preview-remove`, { id }),

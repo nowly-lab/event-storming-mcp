@@ -23,3 +23,15 @@ export function panStep(start, x, y, moving, threshold) {
   if (!moving && Math.hypot(dx, dy) <= threshold) return { moving: false, left: start.left, top: start.top };
   return { moving: true, left: start.left - dx, top: start.top - dy };
 }
+
+/**
+ * What a wheel turn over the zoom box does: Ctrl/⌘ (and trackpad pinch) zooms; a vertical turn scrolls the board
+ * while it can still move that way, and otherwise scrolls the page, so the board never swallows the wheel.
+ */
+export function wheelAction(e, v) {
+  if (e.ctrlKey || e.metaKey) return 'zoom';
+  if (!e.deltaY) return 'view';
+  var room = v.scrollHeight - v.clientHeight;
+  if (e.deltaY > 0 ? v.scrollTop < room - 1 : v.scrollTop > 0) return 'view';
+  return 'page';
+}

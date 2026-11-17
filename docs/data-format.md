@@ -60,7 +60,7 @@ Sticky (`nodes[]`):
 | `text` | string | Sticky text. Events are past-tense business facts; commands are requests; policies are the condition only ("〜されたら", "〜の場合"); aggregates are nouns ("在庫"). |
 | `execution` | enum | Policies only, required: `sync`, `async`, `scheduled`, `external` |
 | `invariants` | list of strings, optional | Aggregates only: the rules the aggregate always keeps ("在庫数は0以上") |
-| `attach` | object, optional | `{ "to": "<node id>", "pos": "above" \| "below" \| "above-left" \| "above-right" \| "below-left" \| "below-right" }`: stick this note onto another note instead of placing it in the flow. Typical for `external`, `hotspot` and a `readModel` with no incoming `result` edge (a read model is attached only to the `actor` or `command` that uses it). An `aggregate` is never attached. The host must not itself be attached. |
+| `attach` | object, optional | `{ "to": "<node id>", "pos": "above" \| "below" \| "above-left" \| "above-right" \| "below-left" \| "below-right" }`: place this note right next to another note (a 10 px gap, never on top of it; several in one position stack away from the host) instead of placing it in the flow. Typical for `external`, `hotspot` and a `readModel` with no incoming `result` edge (a read model is attached only to the `actor` or `command` that uses it). An `aggregate` is never attached. The host must not itself be attached. |
 | `changed` | boolean, optional | `true` marks a sticky that the current plan adds or changes. Planning clears the previous plan's marks before setting its own. |
 | `note` | string, optional | Extra detail shown in the side panel |
 | `evidence` | list, optional | See shared parts |

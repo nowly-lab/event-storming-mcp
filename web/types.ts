@@ -18,3 +18,5 @@ export type ApplyResult =
 export type Removal = { node: string; edges: Edge[]; attached: string[]; glossaryRefs: { term: string }[]; transitions: { lifecycle: string; from: string; on: string; to: string }[]; rejections: { lifecycle: string; state: string; on: string }[] };
 export type VersionEntry = { version: number; at: string; author: Author; summary: string; diff: ChangeSummary };
 export type Project = { slug: string; name: string; modelPath: string; checkouts: { root: string }[]; writeTarget: string; version: number | null };
+export type SessionChange = { kind: "added" | "updated" | "removed"; id: string; type: NodeType; text: string; domain: string; authors: Author[]; fields?: string[] };
+export type SessionDiff = { from: number; to: number; changes: SessionChange[]; edgesAdded: Edge[]; edgesRemoved: Edge[] };

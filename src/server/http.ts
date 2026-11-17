@@ -6,6 +6,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 import { z } from "zod";
 import { engine, PAGE_FILES, productName, type ModelData, type PageFile } from "../model/engine.ts";
 import { OpSchema, previewRemoveNode } from "../model/ops.ts";
+import { sessionDiff } from "../model/session-diff.ts";
 import type { HistoryStore } from "../store/history.ts";
 import type { ModelStore, StoreEvent } from "../store/model-store.ts";
 import type { ProjectRegistry } from "../store/registry.ts";
@@ -31,6 +32,7 @@ const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".j
 
 const ChangesBody = z.object({ nonce: z.string(), baseVersion: z.number().int(), ops: z.array(OpSchema) });
 const NonceBody = z.object({ nonce: z.string() });
+const SessionDiffQuery = z.string().regex(/^\d+$/, "from は版の番号です").transform(Number);
 const RemoveBody = NonceBody.extend({ id: z.string() });
 const RestoreBody = NonceBody.extend({ version: z.number().int().positive(), baseVersion: z.number().int() });
 const TargetBody = NonceBody.extend({ checkoutRoot: z.string() });
@@ -103,6 +105,15 @@ export async function startServer(deps: ServerDeps): Promise<RunningServer> {
             return json(res, 200, await history.list(slug, { limit: Number(url.searchParams.get("limit")) || undefined }));
           case "events":
             return openStream(slug, req, res);
+          case "session-diff": {
+            // What changed since the version the board was opened at (the board's base); see sessionDiff.
+            const from = SessionDiffQuery.parse(url.searchParams.get("from"));
+            const now = await store.read(slug);
+            if (from > now.version) throw new HttpError(400, `版 ${from} はまだありません（今の版は ${now.version}）。`);
+            const before = parse(await history.read(slug, from));
+            const entries = (await history.list(slug)).filter((e) => e.version > from && e.version <= now.version);
+            return json(res, 200, sessionDiff(before, now.data, entries, from, now.version));
+          }
           case "pages": {
             const page = parts[4] as PageFile;
             if (!PAGE_FILES.includes(page)) throw new HttpError(404, "そのページはありません。");
