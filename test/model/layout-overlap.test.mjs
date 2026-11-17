@@ -24,6 +24,10 @@ function crowded() {
     }
   }
   edges.push({ from: 'a-e3', to: 'b-e0', kind: 'flow' });
+  // An actor is narrower than a note: stickies above it and above-right of it must still not touch.
+  nodes.push({ id: 'person', type: 'actor', domain: 'a', text: '人' });
+  for (const pos of POS) nodes.push({ id: `person-${pos}`, type: pos.includes('left') ? 'readModel' : 'hotspot', domain: 'a', text: `${pos} の付箋`, attach: { to: 'person', pos } });
+  edges.push({ from: 'person', to: 'a-e0', kind: 'flow' });
   return { domains, nodes, edges };
 }
 

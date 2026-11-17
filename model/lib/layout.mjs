@@ -26,11 +26,13 @@ const COL = { 'above': 0, 'below': 0, 'above-right': 1, 'below-right': 1, 'above
 export function attachOffsets(hostSize, list, size) {
   const out = new Map();
   const cursor = new Map();
+  // The right column starts after the widest sticky of the middle one (an actor host is narrower than a note above it).
+  const middle = Math.max(hostSize[0], ...list.filter((a) => COL[a.attach.pos] === 0).map((a) => size.get(a.id)[0]));
   for (const a of list) {
     const pos = a.attach.pos, col = COL[pos], up = pos.startsWith('above');
     const [aw, ah] = size.get(a.id);
     const used = cursor.get(pos) || 0;
-    const x = col === 0 ? 0 : col > 0 ? hostSize[0] + GAP : -(aw + GAP);
+    const x = col === 0 ? 0 : col > 0 ? middle + GAP : -(aw + GAP);
     const y = up ? -(used + ah + GAP) : hostSize[1] + GAP + used;
     cursor.set(pos, used + ah + GAP);
     out.set(a.id, [x, y]);

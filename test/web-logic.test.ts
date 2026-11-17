@@ -124,7 +124,7 @@ test("a second commit while saving (blur after Enter) sends nothing", () => {
   assert.equal(again.state.mode, "saving");
 });
 
-import { baseFor, setBase, changeRows, showChanges, setShowChanges } from "../web/session-logic.ts";
+import { baseFor, baseText, setBase, changeRows, showChanges, setShowChanges } from "../web/session-logic.ts";
 
 const memory = () => {
   const m = new Map<string, string>();
@@ -178,4 +178,26 @@ test("changeRows: stickies then arrows, with who and whether the row can jump", 
     ["removed", "削除", "一時メモ", "人", null],
     ["added", "追加", "矢印 字幕が保存された → 入室する", "", "n1"],
   ]);
+});
+
+import { tabStore } from "../web/session-logic.ts";
+
+test("tabStore: with storage that throws, the base, the source and the toggle last for the page", () => {
+  const broken = { getItem: (): string | null => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
+  for (const s of [tabStore(() => broken), tabStore(() => { throw new Error("no sessionStorage"); })]) {
+    assert.equal(baseFor(s, "p", 1), 1);
+    assert.equal(baseFor(s, "p", 2), 1, "a live update does not move the base");
+    setBase(s, "p", 2);
+    assert.equal(baseFor(s, "p", 3), 2);
+    assert.match(baseText(s, "p", 2), /選んだ版/);
+    setShowChanges(s, false);
+    assert.equal(showChanges(s), false);
+  }
+});
+
+test("tabStore: working storage is used and survives a new page (reload)", () => {
+  const m = new Map<string, string>();
+  const real = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
+  assert.equal(baseFor(tabStore(() => real), "p", 4), 4);
+  assert.equal(baseFor(tabStore(() => real), "p", 6), 4);
 });

@@ -4,7 +4,7 @@ import { connectLive, toastText, warningNodeIds } from "./live.ts";
 import { reduce, initialEdit, edgeKindFor, canRebase, type Effect, type EditState } from "./edit-state.ts";
 import { showHistory } from "./history.ts";
 import { renderChanges } from "./session.ts";
-import { baseFor, baseText, setBase, setShowChanges, showChanges } from "./session-logic.ts";
+import { baseFor, baseText, setBase, setShowChanges, showChanges, tabStore } from "./session-logic.ts";
 import type { ApplyResult, Model, NodeType, Op, Project, Removal, SessionDiff } from "./types.ts";
 
 const PAGES: [string, string][] = [
@@ -27,13 +27,9 @@ let edit: EditState = initialEdit();
 let live: { close(): void } | null = null;
 let lastAnchor: string | undefined;
 let diff: SessionDiff | null = null;
-const tabStore = (): Storage | { getItem(): null; setItem(): void } => {
-  try {
-    return window.sessionStorage;
-  } catch {
-    return { getItem: () => null, setItem: () => {} };
-  }
-};
+// One store for the page: sessionStorage, backed by memory when it is blocked.
+const session = tabStore(() => window.sessionStorage);
+const tabStoreOf = () => session;
 
 const board = new Board($("stage"), {
   startText: (id, text) => dispatch({ type: "startText", id, text }),
@@ -245,7 +241,7 @@ async function refreshSession(): Promise<void> {
   $("session-bar").hidden = !on;
   $("changes").hidden = true;
   if (!on) return;
-  const store = tabStore();
+  const store = tabStoreOf();
   const base = baseFor(store, slug, version);
   $("base-label").textContent = baseText(store, slug, base);
   const show = showChanges(store);
@@ -264,7 +260,7 @@ async function refreshSession(): Promise<void> {
 
 function renderHistory(): Promise<void> {
   const compare = (v: number) => {
-    setBase(tabStore(), slug, v);
+    setBase(tabStoreOf(), slug, v);
     location.hash = `#/${encodeURIComponent(slug)}/big-picture.html`;
   };
   return showHistory(slug, { list: $("h-items"), detail: $("h-detail") }, compare, async (v) => {
@@ -319,11 +315,11 @@ $("add").addEventListener("click", () => {
 });
 $("reload-latest").addEventListener("click", () => dispatch({ type: "reloadLatest" }));
 $("rebase").addEventListener("click", () => {
-  setBase(tabStore(), slug, version);
+  setBase(tabStoreOf(), slug, version);
   void refreshSession();
 });
 $("show-changes").addEventListener("change", (e) => {
-  setShowChanges(tabStore(), (e.target as HTMLInputElement).checked);
+  setShowChanges(tabStoreOf(), (e.target as HTMLInputElement).checked);
   void refreshSession();
 });
 window.addEventListener("hashchange", route);

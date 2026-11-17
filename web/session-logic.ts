@@ -15,8 +15,41 @@ function write(s: Store, k: string, v: string): void {
   try {
     s.setItem(k, v);
   } catch {
-    // Private windows and blocked storage: the base then lasts only as long as the page.
+    // tabStore keeps a copy in memory, so a failed write only loses the value on reload.
   }
+}
+
+/**
+ * The tab's store: sessionStorage, with a copy in memory for the life of the page. When sessionStorage is missing or
+ * throws (private windows, blocked site data), the base, its source and the toggle still hold until the page reloads.
+ */
+export function tabStore(open: () => Store): Store {
+  const memory = new Map<string, string>();
+  let primary: Store | null;
+  try {
+    primary = open();
+  } catch {
+    primary = null;
+  }
+  return {
+    getItem(k) {
+      try {
+        const v = primary?.getItem(k) ?? null;
+        if (v !== null) return v;
+      } catch {
+        // fall through to memory
+      }
+      return memory.get(k) ?? null;
+    },
+    setItem(k, v) {
+      memory.set(k, v);
+      try {
+        primary?.setItem(k, v);
+      } catch {
+        // memory holds it
+      }
+    },
+  };
 }
 
 /** The version this tab compares against: set the first time the project is opened here, kept across reloads. */
