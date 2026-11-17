@@ -582,7 +582,7 @@
       "note": "タブでボードを開いた時点の版が既定。「ここから比べ直す」で今の版に、履歴の「この版から比べる」で選んだ版にする。",
       "evidence": [
         {
-          "path": "web/session.ts",
+          "path": "web/session-logic.ts",
           "symbol": "setBase",
           "role": "ui"
         }
@@ -601,7 +601,7 @@
       ],
       "evidence": [
         {
-          "path": "web/session.ts",
+          "path": "web/session-logic.ts",
           "symbol": "baseFor",
           "role": "rule"
         }

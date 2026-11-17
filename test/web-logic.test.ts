@@ -123,3 +123,59 @@ test("a second commit while saving (blur after Enter) sends nothing", () => {
   assert.deepEqual(again.effects, []);
   assert.equal(again.state.mode, "saving");
 });
+
+import { baseFor, setBase, changeRows, showChanges, setShowChanges } from "../web/session-logic.ts";
+
+const memory = () => {
+  const m = new Map<string, string>();
+  return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), m };
+};
+
+test("baseFor: the first open of a project in this tab sets the base; later opens keep it", () => {
+  const s = memory();
+  assert.equal(baseFor(s, "p", 5), 5);
+  assert.equal(baseFor(s, "p", 9), 5, "a reload keeps the base");
+  assert.equal(baseFor(s, "q", 2), 2, "each project has its own base");
+  setBase(s, "p", 9);
+  assert.equal(baseFor(s, "p", 9), 9);
+});
+
+test("baseFor: a stored base newer than the latest version, or garbage, falls back to the latest", () => {
+  const s = memory();
+  s.setItem("esm-base:p", "40");
+  assert.equal(baseFor(s, "p", 7), 7);
+  s.setItem("esm-base:p", "abc");
+  assert.equal(baseFor(s, "p", 7), 7);
+});
+
+test("baseFor: a storage that throws still gives the latest version", () => {
+  const broken = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
+  assert.equal(baseFor(broken, "p", 3), 3);
+  setBase(broken, "p", 3);
+});
+
+test("showChanges: on by default, remembered per tab", () => {
+  const s = memory();
+  assert.equal(showChanges(s), true);
+  setShowChanges(s, false);
+  assert.equal(showChanges(s), false);
+});
+
+test("changeRows: stickies then arrows, with who and whether the row can jump", () => {
+  const rows = changeRows({
+    from: 1, to: 3,
+    changes: [
+      { kind: "added", id: "n1", type: "event", text: "字幕が保存された", domain: "d", authors: [{ kind: "agent", name: "claude-code" }] },
+      { kind: "removed", id: "n2", type: "hotspot", text: "一時メモ", domain: "d", authors: [{ kind: "person" }] },
+      { kind: "updated", id: "n3", type: "command", text: "入室する", domain: "d", authors: [{ kind: "agent", name: "claude-code" }, { kind: "person" }], fields: ["text"] },
+    ],
+    edgesAdded: [{ from: "n1", to: "n3", kind: "flow" }],
+    edgesRemoved: [],
+  }, (id) => ({ n1: "字幕が保存された", n3: "入室する" })[id] ?? id);
+  assert.deepEqual(rows.map((r) => [r.kind, r.label, r.text, r.who, r.jump]), [
+    ["added", "追加", "字幕が保存された", "Claude", "n1"],
+    ["updated", "変更", "入室する", "Claude・人", "n3"],
+    ["removed", "削除", "一時メモ", "人", null],
+    ["added", "追加", "矢印 字幕が保存された → 入室する", "", "n1"],
+  ]);
+});

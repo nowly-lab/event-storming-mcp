@@ -1,4 +1,4 @@
-import type { Edge, Model, NodeType } from "./types.ts";
+import type { Edge, Model, NodeType, SessionDiff } from "./types.ts";
 
 /** What the editor tells the shell. The shell owns the edit state and the server calls. */
 export type BoardHooks = {
@@ -28,6 +28,12 @@ const EDIT_CSS = `
 .esm-overlay path { fill: none; stroke: #1f9d55; stroke-width: 3; stroke-dasharray: 6 5; }
 .edge.esm-sel { stroke: #d64545 !important; stroke-width: 4 !important; }
 .board.esm-connecting .note { cursor: copy; }
+.note.esm-s-added { outline: 4px solid #1f9d55; outline-offset: 4px; }
+.note.esm-s-updated { outline: 4px solid #e0b100; outline-offset: 4px; }
+.esm-badge { position: absolute; top: -14px; right: -8px; z-index: 5; padding: 1px 7px; border-radius: 99px; font: 700 11px/1.5 var(--f-ui); color: #fff; pointer-events: none; }
+.esm-s-added > .esm-badge { background: #1f9d55; }
+.esm-s-updated > .esm-badge { background: #b98f00; }
+.edge.esm-s-added { stroke: #1f9d55 !important; stroke-width: 4 !important; }
 `;
 
 const PANEL_ROWS = (d: PanelData) => {
@@ -136,6 +142,34 @@ export class Board {
         setTimeout(() => el.classList.remove("esm-recent"), 10_000);
       }
     }
+  }
+
+  /** Frames the stickies and arrows changed since the base version (null clears them). Called after every redraw. */
+  markSession(d: SessionDiff | null): void {
+    const doc = this.doc, board = doc?.getElementById("board");
+    if (!doc || !board) return;
+    board.querySelectorAll(".esm-badge").forEach((x) => x.remove());
+    board.querySelectorAll(".esm-s-added, .esm-s-updated").forEach((x) => x.classList.remove("esm-s-added", "esm-s-updated"));
+    if (!d) return;
+    for (const c of d.changes) {
+      if (c.kind === "removed") continue;
+      const el = doc.getElementById(`n-${c.id}`);
+      if (!el) continue;
+      el.classList.add(`esm-s-${c.kind}`);
+      const badge = doc.createElement("span");
+      badge.className = "esm-badge";
+      badge.textContent = c.kind === "added" ? "追加" : "変更";
+      el.appendChild(badge);
+    }
+    for (const e of d.edgesAdded) board.querySelector(`.edge[data-from="${CSS.escape(e.from)}"][data-to="${CSS.escape(e.to)}"]`)?.classList.add("esm-s-added");
+  }
+
+  /** Brings a sticky to the middle of the board and selects it. */
+  focusNode(id: string): void {
+    const el = this.doc?.getElementById(`n-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+    this.select(id);
   }
 
   /** Opens the text editor on a sticky (also used right after adding one). */
