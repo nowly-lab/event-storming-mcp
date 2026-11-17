@@ -75,6 +75,7 @@ export async function layoutBoard(bp) {
 
   const flowEdges = bp.edges.filter((e) => box.has(e.from) && box.has(e.to));
   const domainOf = new Map(bp.nodes.map((n) => [n.id, n.domain]));
+  if (bp.phases?.length) return layoutLanes(bp, { byId, attached, size, box, flowEdges });
 
   // Step 1: lay out each domain on its own, left to right.
   const blocks = [];
@@ -143,14 +144,7 @@ export async function layoutBoard(bp) {
       }
     }
   }
-  const edges = bp.edges.map((e) => {
-    const a = rect.get(e.from), b = rect.get(e.to);
-    if (!a || !b) return null;
-    let sx = a.x + a.w, sy = a.y + a.h / 2, tx = b.x - 3, ty = b.y + b.h / 2;
-    if (tx < sx) { tx = b.x + b.w / 2; ty = b.y - 3; }
-    const dx = Math.max(28, (tx - sx) / 2);
-    return { kind: e.kind, from: e.from, to: e.to, d: `M${r1(sx)} ${r1(sy)} C${r1(sx + dx)} ${r1(sy)},${r1(tx - dx)} ${r1(ty)},${r1(tx)} ${r1(ty)}` };
-  }).filter(Boolean);
+  const edges = edgePaths(bp.edges, rect);
 
   let minX = Infinity, maxX = 0, maxY = 0;
   for (const g of rings) { minX = Math.min(minX, g.cx - g.rx); maxX = Math.max(maxX, g.cx + g.rx); maxY = Math.max(maxY, g.cy + g.ry); }
@@ -212,4 +206,120 @@ export async function layoutGraph(nodes, edges, { direction = 'RIGHT' } = {}) {
     };
   });
   return { nodes: placed, edges: routed, width: Math.ceil(res.width + pad * 2), height: Math.ceil(res.height + pad * 2) };
+}
+
+/** One curve per arrow between placed stickies: right side to left side, or down onto a sticky behind it. */
+function edgePaths(edges, rect) {
+  return edges.map((e) => {
+    const a = rect.get(e.from), b = rect.get(e.to);
+    if (!a || !b) return null;
+    let sx = a.x + a.w, sy = a.y + a.h / 2, tx = b.x - 3, ty = b.y + b.h / 2;
+    if (tx < sx) { tx = b.x + b.w / 2; ty = b.y - 3; }
+    const dx = Math.max(28, (tx - sx) / 2);
+    return { kind: e.kind, from: e.from, to: e.to, d: `M${r1(sx)} ${r1(sy)} C${r1(sx + dx)} ${r1(sy)},${r1(tx - dx)} ${r1(ty)},${r1(tx)} ${r1(ty)}` };
+  }).filter(Boolean);
+}
+
+// ---- timeline lanes ------------------------------------------------------------
+const LANE_LABEL_MIN = 170, LANE_PAD = 28, COL_PAD = 36, LANE_TOP = 150;
+
+/**
+ * The column of every sticky in the flow: its own phase; otherwise the phase of the next event along the flow
+ * (a command takes its event's), else of the previous one; null when neither exists (the 区切りなし column).
+ */
+export function phaseColumns(bp) {
+  const known = new Set((bp.phases || []).map((p) => p.id));
+  const byId = new Map(bp.nodes.map((n) => [n.id, n]));
+  const out = new Map(), inc = new Map();
+  // Flow edges only: a result edge (event ⇢ read model) is not "what happens next".
+  for (const e of bp.edges) {
+    if (e.kind !== 'flow') continue;
+    (out.get(e.from) || out.set(e.from, []).get(e.from)).push(e.to);
+    (inc.get(e.to) || inc.set(e.to, []).get(e.to)).push(e.from);
+  }
+  const own = (n) => (n && !n.attach && known.has(n.phase) ? n.phase : null);
+  // Inference looks for events only: a phased command on the way does not decide where its policy goes.
+  const eventPhase = (n) => (n && n.type === 'event' ? own(n) : null);
+  const search = (start, next) => {
+    const seen = new Set([start]);
+    let level = next.get(start) || [];
+    while (level.length) {
+      const found = level.map((id) => eventPhase(byId.get(id))).find(Boolean);
+      if (found) return found;
+      const nextLevel = [];
+      for (const id of level) if (!seen.has(id)) { seen.add(id); nextLevel.push(...(next.get(id) || [])); }
+      level = nextLevel.filter((id) => !seen.has(id));
+    }
+    return null;
+  };
+  const col = new Map();
+  for (const n of bp.nodes) if (!n.attach) col.set(n.id, own(n) ?? search(n.id, out) ?? search(n.id, inc));
+  return col;
+}
+
+async function layoutLanes(bp, { byId, attached, size, box, flowEdges }) {
+  const col = phaseColumns(bp);
+  const flow = bp.nodes.filter((n) => !n.attach);
+  const cols = [...(flow.some((n) => col.get(n.id) === null) ? [{ id: null, name: '区切りなし' }] : []), ...bp.phases.map((p) => ({ id: p.id, name: p.name }))];
+  const lanes = bp.domains.filter((d) => flow.some((n) => n.domain === d.id));
+  // Each cell (lane × column) is laid out on its own, left to right along the flow inside it.
+  const cell = new Map();
+  for (const lane of lanes) for (const c of cols) {
+    const members = flow.filter((n) => n.domain === lane.id && col.get(n.id) === c.id);
+    if (!members.length) continue;
+    const ids = new Set(members.map((n) => n.id));
+    const inner = await elk.layout({
+      id: `${lane.id}:${c.id}`,
+      layoutOptions: {
+        'elk.algorithm': 'layered', 'elk.direction': 'RIGHT',
+        'elk.layered.spacing.nodeNodeBetweenLayers': '46', 'elk.spacing.nodeNode': '24',
+        'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF', 'elk.spacing.componentComponent': '30',
+        'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES', 'elk.randomSeed': '1',
+      },
+      children: members.map((n) => ({ id: n.id, width: box.get(n.id).w, height: box.get(n.id).h })),
+      edges: flowEdges.filter((e) => ids.has(e.from) && ids.has(e.to)).map((e, i) => ({ id: `e${i}`, sources: [e.from], targets: [e.to] })),
+    });
+    cell.set(`${lane.id}|${c.id}`, inner);
+  }
+  const colW = cols.map((c) => Math.max(160, ...lanes.map((l) => cell.get(`${l.id}|${c.id}`)?.width ?? 0)) + 2 * COL_PAD);
+  const laneH = lanes.map((l) => Math.max(120, ...cols.map((c) => cell.get(`${l.id}|${c.id}`)?.height ?? 0)) + 2 * LANE_PAD);
+  // The label gutter fits the longest lane name (label at x=28, 16 px bold, a 16 px margin).
+  const labelW = Math.max(LANE_LABEL_MIN, ...lanes.map((l) => Math.ceil(28 + textWidth(l.name, 16) * 1.08 + 16)));
+  const colX = [], laneY = [];
+  cols.forEach((_, i) => colX.push(i === 0 ? labelW : colX[i - 1] + colW[i - 1]));
+  lanes.forEach((_, i) => laneY.push(i === 0 ? LANE_TOP : laneY[i - 1] + laneH[i - 1]));
+
+  const rect = new Map(), stickies = [];
+  lanes.forEach((lane, li) => cols.forEach((c, ci) => {
+    const inner = cell.get(`${lane.id}|${c.id}`);
+    if (!inner) return;
+    const ix = colX[ci] + (colW[ci] - inner.width) / 2, iy = laneY[li] + (laneH[li] - inner.height) / 2;
+    for (const k of inner.children) {
+      const n = byId.get(k.id), bx = box.get(k.id);
+      const [w, h] = size.get(n.id);
+      const r = { x: ix + k.x + bx.ox, y: iy + k.y + bx.oy, w, h };
+      rect.set(n.id, r);
+      stickies.push({ node: n, r, z: 2 });
+      const offs = attachOffsets([w, h], attached.get(n.id) || [], size);
+      for (const a of attached.get(n.id) || []) {
+        const [aw, ah] = size.get(a.id);
+        const [ox, oy] = offs.get(a.id);
+        const ar = { x: r.x + ox, y: r.y + oy, w: aw, h: ah };
+        rect.set(a.id, ar);
+        stickies.push({ node: a, r: ar, z: 3 });
+      }
+    }
+  }));
+  // No sticky yet (phases set first, or every sticky removed): an empty band under the headings.
+  const width = colX.at(-1) + colW.at(-1) + 32, height = lanes.length ? laneY.at(-1) + laneH.at(-1) + 32 : LANE_TOP + 120;
+  return {
+    stickies: stickies.map((s) => ({ ...s, r: { x: r1(s.r.x), y: r1(s.r.y), w: s.r.w, h: s.r.h } })),
+    rings: [],
+    top: LANE_TOP,
+    lanes: lanes.map((l, i) => ({ domain: l.id, x: 16, w: width - 32, y: r1(laneY[i]), h: r1(laneH[i]) })),
+    phases: cols.map((c, i) => ({ id: c.id, name: c.name, x: r1(colX[i]), w: r1(colW[i]) })),
+    edges: edgePaths(bp.edges, rect).map((e) => ({ ...e, shift: 0 })),
+    width: Math.ceil(width),
+    height: Math.ceil(height),
+  };
 }

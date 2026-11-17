@@ -38,8 +38,9 @@ export const SPECS = {
   'big-picture': common({
     product: opt(T.str),
     domains: req(T.list(T.obj({ id: req(T.id), name: req(T.str), note: opt(T.str) }))),
+    phases: opt(T.list(T.obj({ id: req(T.id), name: req(T.str), note: opt(T.str) }))),
     nodes: req(T.list(T.obj({
-      id: req(T.id), type: req(T.enum(NODE_TYPES)), domain: req(T.id), text: req(T.str),
+      id: req(T.id), type: req(T.enum(NODE_TYPES)), domain: req(T.id), text: req(T.str), phase: opt(T.id),
       execution: opt(T.enum(EXECUTIONS)),
       invariants: opt(T.list(T.str)),
       attach: opt(T.obj({ to: req(T.id), pos: req(T.enum(ATTACH_POS)) })),
@@ -162,10 +163,16 @@ function ref(v, set, path, label, err) {
 function checkBigPicture(bp, err) {
   const domains = uniqueIds(bp.domains, 'id', 'domains', 'ドメイン id', err);
   const nodeIds = uniqueIds(bp.nodes, 'id', 'nodes', '付箋 id', err);
+  const phases = uniqueIds(bp.phases, 'id', 'phases', '時系列の区切り id', err);
   const byId = new Map((bp.nodes || []).map((n) => [n.id, n]));
   (bp.nodes || []).forEach((n, i) => {
     const p = `nodes[${i}]`;
     ref(n.domain, domains, `${p}.domain`, 'ドメイン', err);
+    if (n.phase !== undefined) {
+      ref(n.phase, phases, `${p}.phase`, '時系列の区切り（phases）', err);
+      if (n.attach) err(`${p}.phase`, `貼った付箋 ${JSON.stringify(n.id)} は貼り先の付箋と同じ所に置かれるので、phase は書けません。消してください。`);
+    }
+    if (phases.size > 0 && n.type === 'event' && !n.attach && n.phase === undefined) err(`${p}.phase`, `時系列の区切り（phases）があるので、イベント ${JSON.stringify(n.id)} にも phase が必要です。${[...phases].map((x) => `"${x}"`).join('、')} のどれかを書いてください。`);
     if (n.type === 'policy' && n.execution === undefined) err(`${p}.execution`, `ポリシーには実行方式が必要です。${EXECUTIONS.map((x) => `"${x}"`).join('、')} のどれかを書いてください。`);
     if (n.type !== 'policy' && n.execution !== undefined) err(`${p}.execution`, `実行方式はポリシーの付箋にだけ書けます。消してください。`);
     if (n.type !== 'aggregate' && n.invariants !== undefined) err(`${p}.invariants`, `不変条件は集約の付箋にだけ書けます。消すか、この付箋の流れの先にある集約に移してください。`);
@@ -244,6 +251,29 @@ function checkBigPicture(bp, err) {
       if (!found) err(`nodes[${i}]`, `コマンド ${JSON.stringify(n.id)} から流れの矢印でたどれるイベントがありません。コマンドが起こすイベントへの矢印を edges に足してください。`);
     }
   });
+  // Time runs left to right: along the flow, the next event never belongs to an earlier phase.
+  if (phases.size > 0) {
+    const order = new Map((bp.phases || []).map((x, i) => [x.id, i]));
+    const flowOut = new Map();
+    for (const e of bp.edges || []) if (e.kind === 'flow') (flowOut.get(e.from) || flowOut.set(e.from, []).get(e.from)).push(e.to);
+    (bp.nodes || []).forEach((n, i) => {
+      if (n.type !== 'event' || !order.has(n.phase)) return;
+      const seen = new Set([n.id]);
+      const stack = [...(flowOut.get(n.id) || [])];
+      while (stack.length) {
+        const id = stack.pop();
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const m = byId.get(id);
+        if (!m) continue;
+        if (m.type === 'event') {
+          if (order.has(m.phase) && order.get(m.phase) < order.get(n.phase)) err(`nodes[${i}].phase`, `イベント ${JSON.stringify(n.id)}（区切り ${JSON.stringify(n.phase)}）の流れの先のイベント ${JSON.stringify(m.id)}（区切り ${JSON.stringify(m.phase)}）が時系列を戻っています。区切りを直すか、矢印の向きを確かめてください。`);
+          continue;
+        }
+        stack.push(...(flowOut.get(id) || []));
+      }
+    });
+  }
   return { domains, nodeIds, byId };
 }
 

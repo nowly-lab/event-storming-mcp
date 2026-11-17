@@ -1,0 +1,66 @@
+{
+  "schema": "workflow-models/v1",
+  "title": "ワークフロー",
+  "checked": {
+    "revision": "abc1234",
+    "date": "2026-11-07"
+  },
+  "lifecycles": [
+    {
+      "id": "item",
+      "name": "商品の判断",
+      "domain": "sourcing",
+      "states": [
+        {
+          "id": "found",
+          "name": "特定済み",
+          "initial": true
+        },
+        {
+          "id": "priced",
+          "name": "相場あり",
+          "changed": true
+        },
+        {
+          "id": "bought",
+          "name": "仕入れ済み",
+          "final": true
+        }
+      ],
+      "transitions": [
+        {
+          "from": "found",
+          "on": "fetch",
+          "to": "priced",
+          "effect": "相場を表示する"
+        },
+        {
+          "from": "priced",
+          "on": "decide",
+          "to": "bought",
+          "guard": "利益率が基準以上"
+        },
+        {
+          "from": "priced",
+          "on": "fetch",
+          "to": "priced",
+          "effect": "相場を更新する"
+        }
+      ],
+      "rejections": [
+        {
+          "state": "found",
+          "on": "decide",
+          "kind": "invalid",
+          "reason": "相場がないと判断できない"
+        },
+        {
+          "state": "bought",
+          "on": "fetch",
+          "kind": "ignored",
+          "reason": "仕入れ後は相場を見ない"
+        }
+      ]
+    }
+  ]
+}

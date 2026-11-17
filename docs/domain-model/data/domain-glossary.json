@@ -111,8 +111,7 @@
       "nodes": [
         "base-agg",
         "base-set"
-      ],
-      "changed": true
+      ]
     },
     {
       "term": "このセッションの変更",
@@ -123,6 +122,20 @@
       ],
       "nodes": [
         "session-diff"
+      ]
+    },
+    {
+      "term": "時系列の区切り",
+      "meaning": "全体像を左から右の時間の順に分ける区切り（phases）。イベントはどれか1つに入り、ドメインは横の帯として区切りをまたぐ",
+      "code": [
+        "phases",
+        "phase",
+        "layoutLanes",
+        "phaseColumns"
+      ],
+      "nodes": [
+        "render",
+        "pages"
       ],
       "changed": true
     }

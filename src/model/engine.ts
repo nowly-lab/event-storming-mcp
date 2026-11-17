@@ -11,12 +11,13 @@ export type AttachPos = "above" | "below" | "above-left" | "above-right" | "belo
 export type Node = {
   id: string; type: NodeType; domain: string; text: string;
   execution?: "sync" | "async" | "scheduled" | "external"; invariants?: string[];
-  attach?: { to: string; pos: AttachPos }; changed?: boolean; note?: string; evidence?: Evidence[];
+  attach?: { to: string; pos: AttachPos }; changed?: boolean; note?: string; evidence?: Evidence[]; phase?: string;
 };
 export type Edge = { from: string; to: string; kind: "flow" | "result" };
 export type Domain = { id: string; name: string; note?: string };
 export type Checked = { revision: string; date: string };
-export type BigPicture = { schema: string; title: string; summary?: string; checked: Checked; product?: string; domains: Domain[]; nodes: Node[]; edges: Edge[] };
+export type BigPicture = { schema: string; title: string; summary?: string; checked: Checked; product?: string; domains: Domain[]; phases?: Phase[]; nodes: Node[]; edges: Edge[] };
+export type Phase = { id: string; name: string; note?: string };
 export type Term = { term: string; meaning: string; code?: string[]; nodes?: string[]; changed?: boolean; evidence?: Evidence[] };
 export type Glossary = { schema: string; title: string; summary?: string; checked: Checked; terms: Term[] };
 export type Transition = { from: string; on: string; to: string; guard?: string; effect?: string; changed?: boolean; evidence?: Evidence[] };

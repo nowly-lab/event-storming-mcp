@@ -1,0 +1,312 @@
+{
+  "schema": "big-picture/v1",
+  "title": "せどり 店舗仕入れの全体像",
+  "product": "sample",
+  "summary": "テスト用の小さなモデル。",
+  "checked": {
+    "revision": "abc1234",
+    "date": "2026-11-07"
+  },
+  "domains": [
+    {
+      "id": "visit",
+      "name": "店舗訪問"
+    },
+    {
+      "id": "sourcing",
+      "name": "仕入れ判断"
+    },
+    {
+      "id": "accounting",
+      "name": "経理"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "buyer",
+      "type": "actor",
+      "domain": "visit",
+      "text": "バイヤー"
+    },
+    {
+      "id": "scan",
+      "type": "command",
+      "domain": "visit",
+      "text": "バーコードを読み取る",
+      "evidence": [
+        {
+          "path": "src/sourcing.ts",
+          "symbol": "scanBarcode",
+          "role": "entry"
+        }
+      ]
+    },
+    {
+      "id": "scanned",
+      "type": "event",
+      "domain": "visit",
+      "text": "商品をスキャンした",
+      "phase": "store"
+    },
+    {
+      "id": "type",
+      "type": "command",
+      "domain": "visit",
+      "text": "型番を入力する"
+    },
+    {
+      "id": "typed",
+      "type": "event",
+      "domain": "visit",
+      "text": "型番を入力した",
+      "phase": "store"
+    },
+    {
+      "id": "in-store",
+      "type": "aggregate",
+      "domain": "visit",
+      "text": "来店",
+      "invariants": [
+        "チェックイン中の店でだけ型番を入力できる"
+      ]
+    },
+    {
+      "id": "lookup",
+      "type": "policy",
+      "domain": "visit",
+      "text": "商品が分かったら",
+      "execution": "async"
+    },
+    {
+      "id": "fetch",
+      "type": "command",
+      "domain": "visit",
+      "text": "相場を取得する"
+    },
+    {
+      "id": "price-svc",
+      "type": "external",
+      "domain": "visit",
+      "text": "価格比較サービス",
+      "attach": {
+        "to": "fetch",
+        "pos": "above"
+      }
+    },
+    {
+      "id": "no-price",
+      "type": "hotspot",
+      "domain": "visit",
+      "text": "相場が取れないときは？",
+      "attach": {
+        "to": "lookup",
+        "pos": "above-right"
+      }
+    },
+    {
+      "id": "priced",
+      "type": "event",
+      "domain": "visit",
+      "text": "相場を取得した",
+      "phase": "store"
+    },
+    {
+      "id": "buyer2",
+      "type": "actor",
+      "domain": "sourcing",
+      "text": "バイヤー"
+    },
+    {
+      "id": "decide",
+      "type": "command",
+      "domain": "sourcing",
+      "text": "仕入れ判断を記録する",
+      "changed": true,
+      "evidence": [
+        {
+          "path": "src/sourcing.ts",
+          "symbol": "recordDecision"
+        }
+      ]
+    },
+    {
+      "id": "decided",
+      "type": "event",
+      "domain": "sourcing",
+      "text": "仕入れを決めた",
+      "changed": true,
+      "phase": "decide"
+    },
+    {
+      "id": "margin",
+      "type": "aggregate",
+      "domain": "sourcing",
+      "text": "仕入れ判断",
+      "invariants": [
+        "利益率が基準以上の商品だけ仕入れる"
+      ]
+    },
+    {
+      "id": "book",
+      "type": "policy",
+      "domain": "accounting",
+      "text": "仕入れを決めたら",
+      "execution": "sync"
+    },
+    {
+      "id": "post",
+      "type": "command",
+      "domain": "accounting",
+      "text": "経費を計上する"
+    },
+    {
+      "id": "posted",
+      "type": "event",
+      "domain": "accounting",
+      "text": "経費に計上した",
+      "phase": "books"
+    },
+    {
+      "id": "monthly",
+      "type": "policy",
+      "domain": "accounting",
+      "text": "毎月1日に",
+      "execution": "scheduled"
+    },
+    {
+      "id": "close",
+      "type": "command",
+      "domain": "accounting",
+      "text": "先月の仕入れ額を締める"
+    },
+    {
+      "id": "closed",
+      "type": "event",
+      "domain": "accounting",
+      "text": "先月の仕入れ額を締めた",
+      "phase": "books"
+    },
+    {
+      "id": "quote",
+      "type": "readModel",
+      "domain": "sourcing",
+      "text": "相場と見込み利益"
+    }
+  ],
+  "edges": [
+    {
+      "from": "buyer",
+      "to": "scan",
+      "kind": "flow"
+    },
+    {
+      "from": "scan",
+      "to": "scanned",
+      "kind": "flow"
+    },
+    {
+      "from": "buyer",
+      "to": "type",
+      "kind": "flow"
+    },
+    {
+      "from": "type",
+      "to": "in-store",
+      "kind": "flow"
+    },
+    {
+      "from": "in-store",
+      "to": "typed",
+      "kind": "flow"
+    },
+    {
+      "from": "scanned",
+      "to": "lookup",
+      "kind": "flow"
+    },
+    {
+      "from": "typed",
+      "to": "lookup",
+      "kind": "flow"
+    },
+    {
+      "from": "lookup",
+      "to": "fetch",
+      "kind": "flow"
+    },
+    {
+      "from": "fetch",
+      "to": "priced",
+      "kind": "flow"
+    },
+    {
+      "from": "priced",
+      "to": "buyer2",
+      "kind": "flow"
+    },
+    {
+      "from": "buyer2",
+      "to": "decide",
+      "kind": "flow"
+    },
+    {
+      "from": "decide",
+      "to": "margin",
+      "kind": "flow"
+    },
+    {
+      "from": "margin",
+      "to": "decided",
+      "kind": "flow"
+    },
+    {
+      "from": "decided",
+      "to": "book",
+      "kind": "flow"
+    },
+    {
+      "from": "book",
+      "to": "post",
+      "kind": "flow"
+    },
+    {
+      "from": "post",
+      "to": "posted",
+      "kind": "flow"
+    },
+    {
+      "from": "monthly",
+      "to": "close",
+      "kind": "flow"
+    },
+    {
+      "from": "close",
+      "to": "closed",
+      "kind": "flow"
+    },
+    {
+      "from": "priced",
+      "to": "quote",
+      "kind": "result"
+    },
+    {
+      "from": "quote",
+      "to": "buyer2",
+      "kind": "flow"
+    }
+  ],
+  "phases": [
+    {
+      "id": "store",
+      "name": "店で調べる"
+    },
+    {
+      "id": "decide",
+      "name": "仕入れを決める"
+    },
+    {
+      "id": "books",
+      "name": "帳簿に付ける"
+    }
+  ]
+}

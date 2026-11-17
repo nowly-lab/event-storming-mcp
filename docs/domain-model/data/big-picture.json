@@ -80,7 +80,8 @@
           "symbol": "project.json",
           "role": "persistence"
         }
-      ]
+      ],
+      "phase": "prepare"
     },
     {
       "id": "open-actor",
@@ -136,7 +137,8 @@
           "symbol": "startServer",
           "role": "ui"
         }
-      ]
+      ],
+      "phase": "prepare"
     },
     {
       "id": "board",
@@ -206,7 +208,8 @@
           "symbol": "async append(",
           "role": "persistence"
         }
-      ]
+      ],
+      "phase": "meeting"
     },
     {
       "id": "person",
@@ -262,7 +265,8 @@
           "symbol": "async append(",
           "role": "persistence"
         }
-      ]
+      ],
+      "phase": "meeting"
     },
     {
       "id": "file-actor",
@@ -317,7 +321,8 @@
           "symbol": "ファイルが変わった",
           "role": "persistence"
         }
-      ]
+      ],
+      "phase": "meeting"
     },
     {
       "id": "pending",
@@ -436,7 +441,8 @@
           "symbol": "に戻した",
           "role": "persistence"
         }
-      ]
+      ],
+      "phase": "review"
     },
     {
       "id": "cli-actor",
@@ -462,7 +468,8 @@
           "symbol": "cmd === 'render'",
           "role": "entry"
         }
-      ]
+      ],
+      "changed": true
     },
     {
       "id": "pages",
@@ -471,7 +478,8 @@
       "text": "モデルのページ",
       "invariants": [
         "データに問題があれば書き出さない",
-        "全体像の付箋どうしは重ならない。貼った付箋は親の隣に間を空けて置き、同じ場所の付箋は外へ積む。付箋はドメインの楕円に収まる"
+        "全体像の付箋どうしは重ならない。貼った付箋は親の隣に間を空けて置き、同じ場所の付箋は外へ積む。付箋はドメインの楕円に収まる",
+        "phases（時系列の区切り）があれば、ドメインを横の帯、区切りを左から右の列にして、イベントを時系列に並べる。流れの先のイベントが前の区切りに戻るのは決まりの違反。phases がなければ楕円で描き、ページは前と同じ"
       ],
       "evidence": [
         {
@@ -482,6 +490,11 @@
         {
           "path": "model/lib/layout.mjs",
           "symbol": "attachOffsets",
+          "role": "rule"
+        },
+        {
+          "path": "model/lib/layout.mjs",
+          "symbol": "layoutLanes",
           "role": "rule"
         }
       ],
@@ -498,7 +511,8 @@
           "symbol": "HTML を",
           "role": "source"
         }
-      ]
+      ],
+      "phase": "finish"
     },
     {
       "id": "check",
@@ -540,7 +554,8 @@
           "symbol": "証拠のパスと名前はすべてあります",
           "role": "source"
         }
-      ]
+      ],
+      "phase": "finish"
     },
     {
       "id": "session-diff",
@@ -564,15 +579,13 @@
           "symbol": "session-diff",
           "role": "entry"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "base-actor",
       "type": "actor",
       "domain": "meeting",
-      "text": "会議の参加者",
-      "changed": true
+      "text": "会議の参加者"
     },
     {
       "id": "base-set",
@@ -586,8 +599,7 @@
           "symbol": "setBase",
           "role": "ui"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "base-agg",
@@ -605,26 +617,14 @@
           "symbol": "baseFor",
           "role": "rule"
         }
-      ],
-      "changed": true
+      ]
     },
     {
       "id": "base-done",
       "type": "event",
       "domain": "meeting",
       "text": "比べる基準を決めた",
-      "changed": true
-    },
-    {
-      "id": "timeline-order",
-      "type": "hotspot",
-      "domain": "cli",
-      "text": "イベントを左から右の時系列に並べるためのデータ（時系列の区切り）と、その見せ方（ドメインを横の帯にするか、楕円のままか）は決めているところ",
-      "attach": {
-        "to": "render",
-        "pos": "below"
-      },
-      "changed": true
+      "phase": "meeting"
     }
   ],
   "edges": [
@@ -842,6 +842,24 @@
       "from": "restore-done",
       "to": "session-diff",
       "kind": "result"
+    }
+  ],
+  "phases": [
+    {
+      "id": "prepare",
+      "name": "準備"
+    },
+    {
+      "id": "meeting",
+      "name": "会議"
+    },
+    {
+      "id": "review",
+      "name": "振り返り"
+    },
+    {
+      "id": "finish",
+      "name": "描画と照合"
     }
   ]
 }
