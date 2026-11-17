@@ -21,7 +21,8 @@ function write(s: Store, k: string, v: string): void {
 
 /**
  * The tab's store: sessionStorage, with a copy in memory for the life of the page. When sessionStorage is missing or
- * throws (private windows, blocked site data), the base, its source and the toggle still hold until the page reloads.
+ * throws on reads or writes (private windows, blocked site data, a full quota), the base, its source and the toggle
+ * still hold until the page reloads.
  */
 export function tabStore(open: () => Store): Store {
   const memory = new Map<string, string>();
@@ -32,14 +33,17 @@ export function tabStore(open: () => Store): Store {
     primary = null;
   }
   return {
+    // Memory wins: it holds every value this page set or has already read, so a failed write or a later failed
+    // read never brings back an older value.
     getItem(k) {
+      if (memory.has(k)) return memory.get(k)!;
       try {
         const v = primary?.getItem(k) ?? null;
-        if (v !== null) return v;
+        if (v !== null) memory.set(k, v);
+        return v;
       } catch {
-        // fall through to memory
+        return null;
       }
-      return memory.get(k) ?? null;
     },
     setItem(k, v) {
       memory.set(k, v);

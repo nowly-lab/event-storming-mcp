@@ -94,6 +94,17 @@ await q.waitForTimeout(1500);
 ok('blocked storage keeps the base across a live update', (await q.textContent('#base-label')) === opened && /このセッションの変更 \(1\)/.test(await q.textContent('#changes h2')), `${opened} → ${await q.textContent('#base-label')} / ${await q.textContent('#changes h2')}`);
 await q.uncheck('#show-changes'); await q.waitForTimeout(600);
 ok('blocked storage keeps the toggle off', !(await q.isChecked('#show-changes')));
+// Readable storage whose writes fail (a full quota): new choices still win over the stored ones.
+const w = await (await b.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+await w.addInitScript(() => { sessionStorage.setItem('esm-show-changes', '1'); Storage.prototype.setItem = () => { throw new DOMException('full', 'QuotaExceededError'); }; });
+await w.goto(`${url}/#/${slug}/big-picture.html`);
+await w.waitForFunction(() => document.querySelector('iframe')?.contentDocument?.getElementById('board'));
+await w.waitForTimeout(800);
+await w.uncheck('#show-changes'); await w.waitForTimeout(600);
+ok('write-blocked storage keeps the toggle off', !(await w.isChecked('#show-changes')) && await w.locator('#changes').isHidden());
+await w.check('#show-changes'); await w.waitForTimeout(400);
+await w.click('#rebase'); await w.waitForTimeout(800);
+ok('write-blocked storage takes ここから比べ直す', /選んだ版/.test(await w.textContent('#base-label')), await w.textContent('#base-label'));
 await b.close(); await mcp.close();
 console.log(fails ? `${fails} failed` : 'all ok');
 process.exit(fails ? 1 : 0);

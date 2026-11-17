@@ -201,3 +201,23 @@ test("tabStore: working storage is used and survives a new page (reload)", () =>
   assert.equal(baseFor(tabStore(() => real), "p", 4), 4);
   assert.equal(baseFor(tabStore(() => real), "p", 6), 4);
 });
+
+test("tabStore: readable storage whose writes fail still takes new values (rebase and toggle)", () => {
+  const m = new Map([["esm-base:p", "1"], ["esm-show-changes", "1"]]);
+  const quota = { getItem: (k: string) => m.get(k) ?? null, setItem: () => { throw new Error("QuotaExceededError"); } };
+  const s = tabStore(() => quota);
+  assert.equal(baseFor(s, "p", 3), 1);
+  setBase(s, "p", 3);
+  assert.equal(baseFor(s, "p", 3), 3);
+  setShowChanges(s, false);
+  assert.equal(showChanges(s), false);
+});
+
+test("tabStore: a value read once survives later read failures", () => {
+  let broken = false;
+  const flaky = { getItem: (k: string) => { if (broken) throw new Error("gone"); return k === "esm-base:p" ? "2" : null; }, setItem: () => {} };
+  const s = tabStore(() => flaky);
+  assert.equal(baseFor(s, "p", 5), 2);
+  broken = true;
+  assert.equal(baseFor(s, "p", 6), 2);
+});
